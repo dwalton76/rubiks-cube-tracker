@@ -30,7 +30,9 @@ import numpy as np
 import os
 import sys
 
-# If you need to troubleshoot a particular image (say side F) run "./extract_rgb_pixels.py F"
+log = logging.getLogger(__name__)
+
+# If you need to troubleshoot a particular image (say side F) run "rubiks-square-extractor.py F"
 # debug will be set to True in this scenario
 debug = False
 
@@ -657,21 +659,3 @@ def extract_rgb_pixels(target_side):
         log.info("\n\n\n")
 
     return colors
-
-
-if __name__ == '__main__':
-    # logging.basicConfig(filename='rubiks.log',
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s %(filename)12s %(levelname)8s: %(message)s')
-    log = logging.getLogger(__name__)
-
-    # Color the errors and warnings in red
-    logging.addLevelName(logging.ERROR, "\033[91m   %s\033[0m" % logging.getLevelName(logging.ERROR))
-    logging.addLevelName(logging.WARNING, "\033[91m %s\033[0m" % logging.getLevelName(logging.WARNING))
-
-    if len(sys.argv) > 1:
-        target_side = sys.argv[1]
-    else:
-        target_side = None
-
-    print(json.dumps(extract_rgb_pixels(target_side), sort_keys=True))
