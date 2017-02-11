@@ -38,71 +38,379 @@ debug = False
 
 median_square_area = None
 square_vs_non_square_debug_printed = []
+contours_by_index = {}
 
-def is_square(cX, cY, contour_area, approx, target_bounding_area=None, strict=False):
+
+def pixel_distance(A, B):
     """
-    A few rules for a rubiks cube square
-    - it has to have four sides
-    - it must not be rotated (ie not a diamond)
-    - (optional) it must be roughly the same size all of the other squares
+    In 9th grade I sat in geometry class wondering "when then hell am I
+    ever going to use this?"...today is that day.
+
+    Return the distance between two pixels
     """
-    global square_vs_non_square_debug_printed
+    (col_A, row_A) = A
+    (col_B, row_B) = B
 
-    if (strict and len(approx) == 4) or (not strict and len(approx) >= 4):
-        (x, y, w, h) = cv2.boundingRect(approx)
-        aspect_ratio = w / float(h)
-        bounding_area = float(w * h)
-        contour_area_vs_bounding_area_ratio = float(contour_area / bounding_area)
+    return math.sqrt(math.pow(col_B - col_A, 2) + math.pow(row_B - row_A, 2))
 
-        if strict:
-            aspect_ratio_min = 0.70
-            aspect_ratio_max = 1.30
 
-            if contour_area_vs_bounding_area_ratio < 0.87:
-                if (cX, cY) not in square_vs_non_square_debug_printed:
-                    log.info("NOT SQUARE: (%d, %d) strict %s, contour_area_vs_bounding_area_ratio %s is less than 0.87" % (cX, cY, strict, contour_area_vs_bounding_area_ratio))
-                    square_vs_non_square_debug_printed.append((cX, cY))
-                return False
+def get_angle(A, B, C, debug=False):
+    """
+    Return the angle at C (in radians) for the triangle formed by A, B, C
+    a, b, c are lengths
 
+        C
+       / \
+    b /   \a
+     /     \
+    A-------B
+        c
+
+    """
+    (col_A, row_A) = A
+    (col_B, row_B) = B
+    (col_C, row_C) = C
+    a = pixel_distance(C, B)
+    b = pixel_distance(A, C)
+    c = pixel_distance(A, B)
+
+    try:
+        cos_angle = (math.pow(a, 2) + math.pow(b, 2) - math.pow(c, 2)) / (2 * a * b)
+    except ZeroDivisionError as e:
+        log.warning("get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f" % (A, B, C, a, b, c))
+        raise e
+
+    # If CA and CB are very long and the angle at C very narrow we can get an
+    # invalid cos_angle which will cause math.acos() to raise a ValueError exception
+    if cos_angle > 1:
+        cos_angle = 1
+    elif cos_angle < -1:
+        cos_angle = -1
+
+    angle_ACB = math.acos(cos_angle)
+    if debug:
+        log.info("get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f, cos_angle %s, angle_ACB %s" %
+                 (A, B, C, a, b, c, pformat(cos_angle), int(math.degrees(angle_ACB))))
+    return angle_ACB
+
+
+def sort_corners(corner1, corner2, corner3, corner4):
+    """
+    Sort the corners such that
+    - A is top left
+    - B is top right
+    - C is bottom left
+    - D is bottom right
+
+    Return an (A, B, C, D) tuple
+    """
+    results = []
+    corners = (corner1, corner2, corner3, corner4)
+
+    min_x = None
+    max_x = None
+    min_y = None
+    max_y = None
+
+    for (x, y) in corners:
+        if min_x is None or x < min_x:
+            min_x = x
+
+        if max_x is None or x > max_x:
+            max_x = x
+
+        if min_y is None or y < min_y:
+            min_y = y
+
+        if max_y is None or y > max_y:
+            max_y = y
+
+    # top left
+    top_left = None
+    top_left_distance = None
+    for (x, y) in corners:
+        distance = pixel_distance((min_x, min_y), (x, y))
+        if top_left_distance is None or distance < top_left_distance:
+            top_left = (x, y)
+            top_left_distance = distance
+
+    results.append(top_left)
+
+    # top right
+    top_right = None
+    top_right_distance = None
+
+    for (x, y) in corners:
+        if (x, y) in results:
+            continue
+
+        distance = pixel_distance((max_x, min_y), (x, y))
+        if top_right_distance is None or distance < top_right_distance:
+            top_right = (x, y)
+            top_right_distance = distance
+    results.append(top_right)
+
+    # bottom left
+    bottom_left = None
+    bottom_left_distance = None
+
+    for (x, y) in corners:
+        if (x, y) in results:
+            continue
+
+        distance = pixel_distance((min_x, max_y), (x, y))
+
+        if bottom_left_distance is None or distance < bottom_left_distance:
+            bottom_left = (x, y)
+            bottom_left_distance = distance
+    results.append(bottom_left)
+
+    # bottom right
+    bottom_right = None
+    bottom_right_distance = None
+
+    for (x, y) in corners:
+        if (x, y) in results:
+            continue
+
+        distance = pixel_distance((max_x, max_y), (x, y))
+
+        if bottom_right_distance is None or distance < bottom_right_distance:
+            bottom_right = (x, y)
+            bottom_right_distance = distance
+    results.append(bottom_right)
+
+    return results
+
+
+def approx_is_square(approx):
+    """
+    Rules:
+    - there must be four corners
+    - all four lines must be roughly the same length
+    - all four corners must be roughly 90 degrees
+    """
+
+    # there must be four corners
+    if len(approx) != 4:
+        return False
+
+    (A, B, C, D) = sort_corners(tuple(approx[0][0]),
+                                tuple(approx[1][0]),
+                                tuple(approx[2][0]),
+                                tuple(approx[3][0]))
+
+    # all four lines must be roughly the same length
+    AB = pixel_distance(A, B)
+    BC = pixel_distance(B, C)
+    CD = pixel_distance(C, D)
+    DA = pixel_distance(D, A)
+    distances = (AB, BC, CD, DA)
+    max_distance = max(distances)
+    cutoff = int(max_distance/2)
+
+    # log.info("approx_is_square A %s, B, %s, C %s, D %s, distance AB %d, BC %d, CD %d, DA %d, max %d, cutoff %d" %
+    #          (A, B, C, D, AB, BC, CD, DA, max_distance, cutoff))
+
+    # If any of the sides is less than half the length of the
+    # longest side then this is obviously not a square
+    for distance in distances:
+        if abs(max_distance - distance) > cutoff:
+            return False
+
+    # all four corners must be roughly 90 degrees
+    angle_cutoff = 20
+    min_angle = 90 - angle_cutoff
+    max_angle = 90 + angle_cutoff
+
+    # Angle at A
+    angle_A = int(math.degrees(get_angle(C, B, A)))
+    if angle_A < min_angle or angle_A > max_angle:
+        return False
+
+    # Angle at B
+    angle_B = int(math.degrees(get_angle(A, D, B)))
+    if angle_B < min_angle or angle_B > max_angle:
+        return False
+
+    # Angle at C
+    angle_C = int(math.degrees(get_angle(A, D, C)))
+    if angle_C < min_angle or angle_C > max_angle:
+        return False
+
+    # Angle at D
+    angle_D = int(math.degrees(get_angle(C, B, D)))
+    if angle_D < min_angle or angle_D > max_angle:
+        return False
+
+    return True
+
+
+class CustomContour(object):
+
+    def __init__(self, index, contour, heirarchy):
+        self.index = index
+        self.contour = contour
+        self.heirarchy = heirarchy
+        peri = cv2.arcLength(contour, True)
+        self.approx = cv2.approxPolyDP(contour, 0.1 * peri, True)
+        self.area = cv2.contourArea(contour)
+        self.corners = len(self.approx)
+
+        if self.heirarchy[3] == -1:
+            self.has_parent = False
         else:
-            aspect_ratio_min = 0.40
-            aspect_ratio_max = 1.60
+            self.has_parent = True
 
-        # a square will have an aspect ratio that is approximately
-        # equal to one, otherwise, the shape is a rectangle
-        if aspect_ratio >= aspect_ratio_min and aspect_ratio <= aspect_ratio_max:
+        # compute the center of the contour
+        M = cv2.moments(contour)
 
-            if target_bounding_area:
-                bounding_area_ratio = float(target_bounding_area / bounding_area)
+        if M["m00"]:
+            self.cX = int(M["m10"] / M["m00"])
+            self.cY = int(M["m01"] / M["m00"])
+            # log.info("(%d, %d), area %d, corners %d" % (self.cX, self.cY, self.area, self.corners))
+        else:
+            self.cX = None
+            self.cY = None
 
-                if bounding_area_ratio >= 0.55 and bounding_area_ratio <= 1.35:
-                    if (cX, cY) not in square_vs_non_square_debug_printed:
-                        log.info("SQUARE: (%d, %d) strict %s, aspect_ratio %s, bounding_area_ratio %s, contour_area_vs_bounding_area_ratio %s" % (cX, cY, strict, aspect_ratio, bounding_area_ratio, contour_area_vs_bounding_area_ratio))
-                        square_vs_non_square_debug_printed.append((cX, cY))
-                    return True
-                else:
-                    if (cX, cY) not in square_vs_non_square_debug_printed:
-                        log.info("NOT SQUARE: (%d, %d) strict %s, bounding_area %s, target_bounding_area %s, bounding_area_ratio %s" % (cX, cY, strict, bounding_area, target_bounding_area, bounding_area_ratio))
-                        square_vs_non_square_debug_printed.append((cX, cY))
-                    return False
+    def __str__(self):
+        return "Contour #%d (%s, %s)" % (self.index, self.cX, self.cY)
+
+    def is_square(self, target_area=None, strict=False):
+        """
+        A few rules for a rubiks cube square
+        - it has to have four sides
+        - it must not be rotated (ie not a diamond)
+        - (optional) it must be roughly the same size all of the other squares
+        """
+        global square_vs_non_square_debug_printed
+
+        cX = self.cX
+        cY = self.cY
+        contour_area = self.area
+        approx = self.approx
+
+        if not approx_is_square(approx):
+            return False
+
+        if target_area:
+            area_ratio = float(target_area / self.area)
+
+            if area_ratio < 0.80 or area_ratio > 1.20:
+                # log.info("FALSE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
+                return False
             else:
-                if (cX, cY) not in square_vs_non_square_debug_printed:
-                    log.info("SQUARE: (%d, %d) strict %s, aspect_ratio %s, no target area, contour_area_vs_bounding_area_ratio %s" % (cX, cY, strict, aspect_ratio, contour_area_vs_bounding_area_ratio))
-                    square_vs_non_square_debug_printed.append((cX, cY))
+                # log.info("TRUE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
                 return True
         else:
-            if (cX, cY) not in square_vs_non_square_debug_printed:
-                log.info("NOT SQUARE: (%d, %d) strict %s, aspect_ratio %s" % (cX, cY, strict, aspect_ratio))
-                square_vs_non_square_debug_printed.append((cX, cY))
+            return True
+
+        # dwalton - experiment...ignore this for now
+        '''
+        if (strict and self.corners == 4) or (not strict and self.corners >= 4):
+            (x, y, w, h) = cv2.boundingRect(approx)
+            aspect_ratio = w / float(h)
+            bounding_area = float(w * h)
+
+            if strict:
+                aspect_ratio_min = 0.70
+                aspect_ratio_max = 1.30
+            else:
+                aspect_ratio_min = 0.40
+                aspect_ratio_max = 1.60
+
+            # a square will have an aspect ratio that is approximately
+            # equal to one, otherwise, the shape is a rectangle
+            if aspect_ratio >= aspect_ratio_min and aspect_ratio <= aspect_ratio_max:
+
+                if target_bounding_area:
+                    bounding_area_ratio = float(target_bounding_area / bounding_area)
+
+                    if bounding_area_ratio >= 0.55 and bounding_area_ratio <= 1.35:
+                        if (cX, cY) not in square_vs_non_square_debug_printed:
+                            log.info("SQUARE: %s strict %s, aspect_ratio %s, bounding_area_ratio %s" %
+                                     (self, strict, aspect_ratio, bounding_area_ratio))
+                            square_vs_non_square_debug_printed.append((cX, cY))
+                        return True
+                    else:
+                        if (cX, cY) not in square_vs_non_square_debug_printed:
+                            log.info("NOT SQUARE: %s strict %s, bounding_area %s, target_bounding_area %s, bounding_area_ratio %s" %
+                                     (self, strict, bounding_area, target_bounding_area, bounding_area_ratio))
+                            square_vs_non_square_debug_printed.append((cX, cY))
+                        return False
+                else:
+                    if (cX, cY) not in square_vs_non_square_debug_printed:
+                        log.info("SQUARE: %s strict %s, aspect_ratio %s, no target area" %
+                                 (self, strict, aspect_ratio))
+                        square_vs_non_square_debug_printed.append((cX, cY))
+                    return True
+            else:
+                if (cX, cY) not in square_vs_non_square_debug_printed:
+                    log.info("NOT SQUARE: %s strict %s, aspect_ratio %s" % (self, strict, aspect_ratio))
+                    square_vs_non_square_debug_printed.append((cX, cY))
+                    return False
+
+        return False
+        '''
+
+    def get_child(self):
+        # Each contour has its own information regarding what hierarchy it
+        # is, who is its parent, who is its parent etc. OpenCV represents it as
+        # an array of four values : [Next, Previous, First_parent, Parent]
+        child = self.heirarchy[2]
+
+        if child != -1:
+            return contours_by_index[child]
+        return None
+
+    def child_is_square(self):
+        """
+        The black border between the squares can cause us to sometimes find a
+        contour for the outside edge of the border and a contour for the the
+        inside edge.  This function returns True if this contour is the outside
+        contour in that scenario.
+        """
+        child_con = self.get_child()
+
+        if child_con:
+            # If there is a dent in a square sometimes you will get a really small
+            # contour inside the square...we want to ignore those so make sure the
+            # area of the inner square is close to the area of the outer square.
+            if int(child_con.area * 2) < self.area:
                 return False
 
-    #if (cX, cY) not in square_vs_non_square_debug_printed:
-    #    log.info("NOT SQUARE: (%d, %d) strict %s, len approx %d" % (cX, cY, strict, len(approx)))
-    #    square_vs_non_square_debug_printed.append((cX, cY))
-    return False
+            if child_con.is_square(strict=True):
+                return True
+
+        return False
+
+    def get_parent(self):
+        # Each contour has its own information regarding what hierarchy it
+        # is, who is its parent, who is its parent etc. OpenCV represents it as
+        # an array of four values : [Next, Previous, First_parent, Parent]
+        parent = self.heirarchy[3]
+
+        if parent != -1:
+            return contours_by_index[parent]
+        return None
+
+    def parent_is_square(self):
+        parent_con = self.get_parent()
+
+        if parent_con:
+            # If there is a dent in a square sometimes you will get a really small
+            # contour inside the square...we want to ignore those so make sure the
+            # area of the inner square is close to the area of the outer square.
+            if int(parent_con.area * 2) < self.area:
+                return False
+
+            if parent_con.is_square(strict=True):
+                return True
+
+        return False
 
 
-def get_candidate_neighbors(target_tuple, candidates, img_width, img_height):
+def get_candidate_neighbors(target_con, candidates, img_width, img_height):
     """
     target_tuple is a contour, return stats on how many other contours are in
     the same 'row' or 'col' as target_tuple
@@ -122,42 +430,42 @@ def get_candidate_neighbors(target_tuple, candidates, img_width, img_height):
     width_wiggle = int(img_width * COL_THRESHOLD)
     height_wiggle = int(img_height * ROW_THRESHOLD)
 
-    (_, _, _, _, target_cX, target_cY) = target_tuple
+    target_cX = target_con.cX
+    target_cY = target_con.cY
 
     log.debug("get_candidate_neighbors() for contour (%d, %d), width_wiggle %s, height_wiggle %s" %
         (target_cX, target_cY, width_wiggle, height_wiggle))
 
-    for x in candidates:
+    for con in candidates:
 
         # do not count yourself
-        if x == target_tuple:
+        if con == target_con:
             continue
 
-        (index, area, currentContour, approx, cX, cY) = x
-        x_delta = abs(cX - target_cX)
-        y_delta = abs(cY - target_cY)
+        x_delta = abs(con.cX - target_cX)
+        y_delta = abs(con.cY - target_cY)
 
         if x_delta <= width_wiggle:
             col_neighbors += 1
 
-            if is_square(cX, cY, area, approx, median_square_area):
+            if con.is_square(median_square_area):
                 col_square_neighbors += 1
-                log.debug("(%d, %d) is a square col neighbor" % (cX, cY))
+                log.debug("(%d, %d) is a square col neighbor" % (con.cX, con.cY))
             else:
-                log.debug("(%d, %d) is a col neighbor but has %d corners" % (cX, cY, len(approx)))
+                log.debug("(%d, %d) is a col neighbor but has %d corners" % (con.cX, con.cY, con.corners))
         else:
-            log.debug("(%d, %d) x delta %s it outside wiggle room %s" % (cX, cY, x_delta, width_wiggle))
+            log.debug("(%d, %d) x delta %s it outside wiggle room %s" % (con.cX, con.cY, x_delta, width_wiggle))
 
         if y_delta <= height_wiggle:
             row_neighbors += 1
 
-            if is_square(cX, cY, area, approx, median_square_area):
+            if con.is_square(median_square_area):
                 row_square_neighbors += 1
-                log.debug("(%d, %d) is a square row neighbor" % (cX, cY))
+                log.debug("(%d, %d) is a square row neighbor" % (con.cX, con.cY))
             else:
-                log.debug("(%d, %d) is a row neighbor but has %d corners" % (cX, cY, len(approx)))
+                log.debug("(%d, %d) is a row neighbor but has %d corners" % (con.cX, con.cY, con.corners))
         else:
-            log.debug("(%d, %d) y delta %s it outside wiggle room %s" % (cX, cY, y_delta, height_wiggle))
+            log.debug("(%d, %d) y delta %s it outside wiggle room %s" % (con.cX, con.cY, y_delta, height_wiggle))
 
     log.debug("get_candidate_neighbors() for contour (%d, %d) has row %d, row_square %d, col %d, col_square %d neighbors" %
         (target_cX, target_cY, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
@@ -178,8 +486,8 @@ def sort_by_row_col(candidates):
 
         # We want the squares_per_row that are closest to the top
         tmp = []
-        for (index, area, currentContour, approx, cX, cY) in candidates:
-            tmp.append((cY, cX))
+        for con in candidates:
+            tmp.append((con.cY, con.cX))
         top_row = sorted(tmp)[:squares_per_row]
 
         # Now that we have those, sort them from left to right
@@ -191,15 +499,20 @@ def sort_by_row_col(candidates):
         log.info("sort_by_row_col() row %d: %s" % (row_index, pformat(top_row_left_right)))
         candidates_to_remove = []
         for (target_cX, target_cY) in top_row_left_right:
-            for (index, area, currentContour, approx, cX, cY) in candidates:
-                if cX == target_cX and cY == target_cY:
-                    result.append((index, area, currentContour, approx, cX, cY))
-                    candidates_to_remove.append((index, area, currentContour, approx, cX, cY))
+            for con in candidates:
+
+                if con in candidates_to_remove:
+                    continue
+
+                if con.cX == target_cX and con.cY == target_cY:
+                    result.append(con)
+                    candidates_to_remove.append(con)
                     break
 
-        for x in candidates_to_remove:
-            candidates.remove(x)
+        for con in candidates_to_remove:
+            candidates.remove(con)
 
+    assert len(result) == num_squares, "sort_by_row_col is returning %d squares, it should be %d" % (len(result), num_squares)
     return result
 
 
@@ -228,15 +541,13 @@ def remove_contours_outside_cube(candidates, top, right, bottom, left):
     left = left * (1 - COL_THRESHOLD)
     right = right * (1 + COL_THRESHOLD)
 
-    for x in candidates:
-        (index, area, currentContour, approx, cX, cY) = x
-
-        if cY < top or cY > bottom or cX < left or cX > right:
-            candidates_to_remove.append(x)
+    for con in candidates:
+        if con.cY < top or con.cY > bottom or con.cX < left or con.cX > right:
+            candidates_to_remove.append(con)
 
     if candidates_to_remove:
-        for x in candidates_to_remove:
-            candidates.remove(x)
+        for con in candidates_to_remove:
+            candidates.remove(con)
             removed += 1
 
     log.info("remove_contours_outside_cube() %d removed, %d remain" % (removed, len(candidates)))
@@ -246,23 +557,46 @@ def remove_rogue_non_squares(size, candidates, img_width, img_height):
     removed = 0
     candidates_to_remove = []
 
-    for x in candidates:
-        (index, area, currentContour, approx, cX, cY) = x
-
-        if not is_square(cX, cY, area, approx, median_square_area):
+    for con in candidates:
+        if not con.is_square(median_square_area):
             (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
-                get_candidate_neighbors(x, candidates, img_width, img_height)
+                get_candidate_neighbors(con, candidates, img_width, img_height)
 
-            # not row_square_neighbors or not col_square_neighbors):
-            if row_square_neighbors == size or col_square_neighbors == size:
-                candidates_to_remove.append(x)
+            if not row_square_neighbors or not col_square_neighbors or row_square_neighbors == size or col_square_neighbors == size:
+                candidates_to_remove.append(con)
+
+    if candidates_to_remove:
+        for con in candidates_to_remove:
+            candidates.remove(con)
+            removed += 1
+
+    log.info("remove_rogue_non_squares() %d removed, %d remain" % (removed, len(candidates)))
+
+
+def remove_square_within_square_contours(candidates):
+    removed = 0
+    candidates_to_remove = []
+
+    # Remove parents with square child contours
+    for con in candidates:
+        if con.is_square(strict=True) and con.child_is_square():
+            candidates_to_remove.append(con)
+
+    # Remove contours whose parents are square
+    for con in candidates:
+        if con in candidates_to_remove:
+            continue
+
+        if con.parent_is_square():
+            parent = con.get_parent()
+
+            if parent not in candidates_to_remove:
+                candidates_to_remove.append(con)
 
     if candidates_to_remove:
         for x in candidates_to_remove:
             candidates.remove(x)
             removed += 1
-
-    log.info("remove_rogue_non_squares() %d removed, %d remain" % (removed, len(candidates)))
 
 
 def remove_lonesome_contours(candidates, img_width, img_height, min_neighbors):
@@ -278,27 +612,29 @@ def remove_lonesome_contours(candidates, img_width, img_height, min_neighbors):
     while True:
         candidates_to_remove = []
 
-        for x in candidates:
-            (index, area, currentContour, approx, cX, cY) = x
-
+        for con in candidates:
             (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
-                get_candidate_neighbors(x, candidates, img_width, img_height)
+                get_candidate_neighbors(con, candidates, img_width, img_height)
 
             if row_neighbors < min_neighbors:
-                candidates_to_remove.append(x)
-                log.info("remove_lonesome_contours() (%d, %d) removed due to row_neighbors %d < %d" % (cX, cY, row_neighbors, min_neighbors))
+                candidates_to_remove.append(con)
+                log.info("remove_lonesome_contours() %s removed due to row_neighbors %d < %d" % (con, row_neighbors, min_neighbors))
 
             elif col_neighbors < min_neighbors:
-                candidates_to_remove.append(x)
-                log.info("remove_lonesome_contours() (%d, %d) removed due to col_neighbors %d < %d" % (cX, cY, col_neighbors, min_neighbors))
+                candidates_to_remove.append(con)
+                log.info("remove_lonesome_contours() %s removed due to col_neighbors %d < %d" % (con, col_neighbors, min_neighbors))
 
             elif not row_square_neighbors and not col_square_neighbors:
-                candidates_to_remove.append(x)
-                log.info("remove_lonesome_contours() (%d, %d) removed due to no row and col square neighbors" % (cX, cY))
+                candidates_to_remove.append(con)
+                log.info("remove_lonesome_contours() %s removed due to no row and col square neighbors" % con)
+
+            elif con.corners == 2:
+                candidates_to_remove.append(con)
+                log.info("remove_lonesome_contours() %s removed due only two corners" % con)
 
         if candidates_to_remove:
-            for x in candidates_to_remove:
-                candidates.remove(x)
+            for con in candidates_to_remove:
+                candidates.remove(con)
                 removed += 1
         else:
             break
@@ -316,11 +652,9 @@ def get_cube_size(candidates, img_width, img_height):
     # Find the median area of all square contours and find the top, right,
     # bottom, left boundry of all square contours
     square_areas = []
-    for x in candidates:
-        (index, area, currentContour, approx, cX, cY) = x
-
-        if is_square(cX, cY, area, approx, strict=True):
-            square_areas.append(int(area))
+    for con in candidates:
+        if con.is_square(strict=True):
+            square_areas.append(int(con.area))
 
     global square_vs_non_square_debug_printed
     square_vs_non_square_debug_printed = []
@@ -343,12 +677,10 @@ def get_cube_size(candidates, img_width, img_height):
     bottom = None
     left = None
 
-    for x in candidates:
-        (index, area, currentContour, approx, cX, cY) = x
-
-        if is_square(cX, cY, area, approx, median_square_area, strict=True):
+    for con in candidates:
+        if con.is_square(median_square_area, strict=True):
             (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
-                get_candidate_neighbors(x, candidates, img_width, img_height)
+                get_candidate_neighbors(con, candidates, img_width, img_height)
             row_size = row_square_neighbors + 1
             col_size = col_square_neighbors + 1
 
@@ -357,17 +689,17 @@ def get_cube_size(candidates, img_width, img_height):
             else:
                 data.append(col_size)
 
-            if top is None or cY < top:
-                top = cY
+            if top is None or con.cY < top:
+                top = con.cY
 
-            if bottom is None or cY > bottom:
-                bottom = cY
+            if bottom is None or con.cY > bottom:
+                bottom = con.cY
 
-            if left is None or cX < left:
-                left = cX
+            if left is None or con.cX < left:
+                left = con.cX
 
-            if right is None or cX > right:
-                right = cX
+            if right is None or con.cX > right:
+                right = con.cX
 
     data = sorted(data)
     median_index = int(len(data)/2)
@@ -384,19 +716,20 @@ def draw_cube(image, candidates, desc):
 
     if not debug:
         return
+    log.info("draw_cube() for %s" % desc)
 
     if candidates:
         to_draw = []
         to_draw_square = []
         to_draw_approx = []
 
-        for (index, area, contour, approx, cX, cY) in candidates:
-            if is_square(cX, cY, area, approx, median_square_area):
-                to_draw_square.append(contour)
-                # to_draw_approx.append(approx)
+        for con in candidates:
+            if con.is_square(strict=True):
+                to_draw_square.append(con.contour)
+                #to_draw_approx.append(con.approx)
             else:
-                to_draw.append(contour)
-                to_draw_approx.append(approx)
+                to_draw.append(con.contour)
+                to_draw_approx.append(con.approx)
 
         tmp_image = image.copy()
         cv2.drawContours(tmp_image, to_draw, -1, (255, 0, 0), 2)
@@ -411,141 +744,118 @@ def draw_cube(image, candidates, desc):
 
 
 def get_rubiks_squares(filename):
+    global contours_by_index
+
     image = cv2.imread(filename)
     (img_height, img_width) = image.shape[:2]
 
     # convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #draw_cube(gray, None, "gray")
+    #draw_cube(gray, None, "00 gray")
 
+    # blur a little...not sure why but most canny examples I've found do this prior to running canny
+    # http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-    #draw_cube(blurred, None, "blurred")
+    #draw_cube(blurred, None, "10 blurred")
 
-    # Threshold settings from here:
-    # http://opencvpython.blogspot.com/2012/06/sudoku-solver-part-2.html
-    thresh = cv2.adaptiveThreshold(blurred, 255, 1, 1, 11, 2)
-    #draw_cube(thresh, None, "thresh")
+    # canny to find the edges
+    canny = cv2.Canny(blurred, 20, 40)
+    draw_cube(canny, None, "20 canny")
 
-    # Use a very high h value so that we really blur the image to remove
-    # all spots that might be in the rubiks squares...we want the rubiks
-    # squares to be solid black
-    denoised = cv2.fastNlMeansDenoising(thresh, h=50)
-    draw_cube(denoised, None, "denoised")
+    # dilate the image to make the edge lines thicker
+    kernel = np.ones((3,3), np.uint8)
+    dilated = cv2.dilate(canny, kernel, iterations=1)
+    draw_cube(dilated, None, "30 dilated")
+
+    # Erode the image to remove any really thin lines that might be connected our squares
+    #eroded = cv2.erode(dilated, kernel, iterations=1)
+    #draw_cube(eroded, None, "35 eroded")
 
     # Now invert the image so that the rubiks squares are white but most
     # of the rest of the image is black
-    inverted = cv2.threshold(denoised, 10, 255, cv2.THRESH_BINARY_INV)[1]
-    #draw_cube(inverted, None, "inverted")
+    #inverted = cv2.threshold(dilated, 10, 255, cv2.THRESH_BINARY_INV)[1]
+    #draw_cube(inverted, None, "35 inverted")
 
-    # Erode the image to remove any really thin lines that might be connected our squares
-    kernel = np.ones((4,4), np.uint8)
-    eroded = cv2.erode(inverted, kernel, iterations=2)
-    #draw_cube(eroded, None, "eroded")
 
-    # Now dilate the image to make the squares a little larger
-    dilated = cv2.dilate(eroded, kernel, iterations=1)
-    draw_cube(dilated, None, "dilated")
-
+    # find the contours and create a CustomContour object for each...store these in "candidates"
+    # http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
+    # http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
     (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
+    # (contours, hierarchy) = cv2.findContours(inverted.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     candidates = []
     hierarchy = hierarchy[0] # get the actual inner list of hierarchy descriptions
 
-    # http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
-    # http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
-    #
-    # For each contour, find the bounding rectangle and draw it
     index = 0
     for component in zip(contours, hierarchy):
-        currentContour = component[0]
-        currentHierarchy = component[1]
+        con = CustomContour(index, component[0], component[1])
+        contours_by_index[index] = con
 
-        '''
-        Things I used to filter on here but no longer do
-        - currentHierarchy[2] of -1 means this contour has no children so we know
-          this is the "inside" contour for a square...some squares get two contours
-          due to the black border around the edge of the square
-
-          This ended up filtering out some legit contours of squares so I chopped it
-
-        - using 'approx' to determine if the contour has as least 4 corners
-
-          If the square has dent in it (or a splotch, dust, etc) this can cause us to
-          find a contour inside the square but the contour won't be square at all
-        '''
-        # approximate the contour
-        peri = cv2.arcLength(currentContour, True)
-        approx = cv2.approxPolyDP(currentContour, 0.1 * peri, True)
-        area = cv2.contourArea(currentContour)
-
-        if currentHierarchy[3] == -1:
-            has_parent = False
-        else:
-            has_parent = True
-
-        # Sometimes dents in the sticker on a square can cause us to find a contour
-        # within the contour for the square.  Ignore any contour that has a parent contour.
-        if has_parent:
-            continue
-
-        if area > 30:
-
-            # compute the center of the contour
-            M = cv2.moments(currentContour)
-
-            if M["m00"]:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-
-                log.info("(%d, %d), area %d, corners %d" % (cX, cY, area, len(approx)))
-                candidates.append((index, area, currentContour, approx, cX, cY))
+        if con.area > 30 and con.cX is not None:
+            candidates.append(con)
         index += 1
 
-    draw_cube(image, candidates, "pre lonesome removal #1")
+    # dwalton
+    draw_cube(image, candidates, "40 pre square-within-square removal #1")
+    remove_square_within_square_contours(candidates)
+    #draw_cube(image, candidates, "post square-within-square removal #1")
+
+    draw_cube(image, candidates, "50 pre lonesome removal #1")
     remove_lonesome_contours(candidates, img_width, img_height, 1)
-    draw_cube(image, candidates, "post lonesome removal #1")
+    #draw_cube(image, candidates, "post lonesome removal #1")
 
     # get the extreme coordinates for any of the obvious squares and
     # remove all contours outside of those coordinates
+    draw_cube(image, candidates, "60 pre outside cube removal")
     (size, top, right, bottom, left) =\
         get_cube_size(deepcopy(candidates), img_width, img_height)
     remove_contours_outside_cube(candidates, top, right, bottom, left)
-    draw_cube(image, candidates, "post outside square removal")
 
+    draw_cube(image, candidates, "70 pre non-square removal")
     remove_rogue_non_squares(size, candidates, img_width, img_height)
-    draw_cube(image, candidates, "post rogue non-square removal")
-
     num_squares = len(candidates)
 
-    if not square_root_is_integer(num_squares):
+    if square_root_is_integer(num_squares):
+        draw_cube(image, candidates, "80 post non-square removal")
+    else:
+        draw_cube(image, candidates, "80 pre lonesome removal #2")
         remove_lonesome_contours(candidates, img_width, img_height, int(size/2))
-        draw_cube(image, candidates, "post lonesome removal #2")
         num_squares = len(candidates)
 
-    candidates = sort_by_row_col(deepcopy(candidates))
-    data = []
+    # dwalton
+    draw_cube(image, candidates, "90 Final")
 
-    for (index, area, contour, approx, cX, cY) in candidates:
-        # We used to use the value of the center pixel
-        #(blue, green, red) = map(int, image[cY, cX])
-        #data.append((red, green, blue))
-
-        # Now we use the mean value of the contour
-        mask = np.zeros(gray.shape, np.uint8)
-        cv2.drawContours(mask, [contour], 0, 255, -1)
-        (mean_blue, mean_green, mean_red, _)= map(int, cv2.mean(image, mask = mask))
-        data.append((mean_red, mean_green, mean_blue))
-
-        #log.info("normal BGR (%s, %s, %s), mean BGR (%s, %s, %s)" %\
-        #    (blue, green, red, mean_blue, mean_green, mean_red))
-
-    draw_cube(image, candidates, "Final")
-
-    # Verify we found the right number of squares
+    # Verify we found a feasible number of squares
     num_squares = len(candidates)
 
-    if not square_root_is_integer(num_squares):
+    if square_root_is_integer(num_squares):
+        log.info("Found %d squares" % num_squares)
+    else:
         raise Exception("Found %d squares which cannot be right" % num_squares)
+
+    # Verify each row/col has the same number of neighbors
+    req_row_neighbors = None
+    req_col_neighbors = None
+
+    for con in candidates:
+        (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
+            get_candidate_neighbors(con, candidates, img_width, img_height)
+
+        if req_row_neighbors is None:
+            req_row_neighbors = row_neighbors
+
+        if req_col_neighbors is None:
+            req_col_neighbors = col_neighbors
+
+        assert row_neighbors == req_row_neighbors, "%s has %d row neighbors, must be %d" % (con, row_neighbors, req_row_neighbors)
+        assert col_neighbors == req_col_neighbors, "%s has %d col neighbors, must be %d" % (con, col_neighbors, req_col_neighbors)
+
+    data = []
+    for con in sort_by_row_col(deepcopy(candidates)):
+        # Use the mean value of the contour
+        mask = np.zeros(gray.shape, np.uint8)
+        cv2.drawContours(mask, [con.contour], 0, 255, -1)
+        (mean_blue, mean_green, mean_red, _)= map(int, cv2.mean(image, mask = mask))
+        data.append((mean_red, mean_green, mean_blue))
 
     return data
 
