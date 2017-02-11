@@ -20,9 +20,9 @@ def rgb_matches(text1, text2):
         (r1, g1, b1) = rgb1
         (r2, g2, b2) = rgb2
 
-        if (abs(r1 - r2) >= 10 or
-            abs(g1 - g2) >= 10 or
-            abs(b1 - b2) >= 10):
+        if (abs(r1 - r2) >= 15 or
+            abs(g1 - g2) >= 15 or
+            abs(b1 - b2) >= 15):
             return False
 
     return True
@@ -40,7 +40,12 @@ def get_rgb_delta(text1, text2):
             result.append("%2d: %14s != ERROR" % (int(square_index), pformat(rgb1)))
             continue
 
-        if rgb1 != rgb2:
+        (r1, g1, b1) = rgb1
+        (r2, g2, b2) = rgb2
+
+        if (abs(r1 - r2) >= 15 or
+            abs(g1 - g2) >= 15 or
+            abs(b1 - b2) >= 15):
             result.append("%2d: %14s != %-14s" % (int(square_index), pformat(rgb1), pformat(rgb2)))
 
     return '\n'.join(result)
@@ -67,17 +72,15 @@ test_cases = (
     ('3x3x3 random 06',    'test-data/3x3x3-random-06.txt'),
     ('3x3x3 random 07',    'test-data/3x3x3-random-07.txt'),
     ('3x3x3 random 08',    'test-data/3x3x3-random-08.txt'),
-    ('3x3x3 random 09',    'test-data/3x3x3-random-09.txt'),
     ('4x4x4 random 01',    'test-data/4x4x4-random-01.txt'),
     ('4x4x4 random 02',    'test-data/4x4x4-random-02.txt'),
     ('4x4x4 random 03',    'test-data/4x4x4-random-03.txt'),
     ('4x4x4 random 04',    'test-data/4x4x4-random-04.txt'),
+    ('5x5x5 random 01',    'test-data/5x5x5-random-01.txt'),
     ('6x6x6 solved 01',    'test-data/6x6x6-solved-01.txt'),
     ('6x6x6 solved 02',    'test-data/6x6x6-solved-02.txt'),
 )
 
-'''
-'''
 #test_cases = (
 #    ('3x3x3 random 02',    'test-data/3x3x3-random-02.txt'),
 #    #('4x4x4 random 01',    'test-data/4x4x4-random-01.txt'),
@@ -93,9 +96,9 @@ for (desc, filename) in test_cases:
     subprocess.call("cp %s/*.png /tmp/" % test_dir, shell=True)
 
     try:
-        output = subprocess.check_output(['./extract_rgb_pixels.py']).decode('ascii').splitlines()[0].strip()
+        output = subprocess.check_output(['rubiks-square-extractor.py']).decode('ascii').splitlines()[0].strip()
     except subprocess.CalledProcessError:
-        print("ERROR: ./extract_rgb_pixels.py barfed on %s" % filename)
+        print("ERROR: rubiks-square-extractor.py barfed on %s" % filename)
         sys.exit(1)
 
     with open(filename, 'r') as fh:
@@ -107,5 +110,6 @@ for (desc, filename) in test_cases:
         results.append("\033[91mFAIL\033[0m: %s" % desc)
         results.append(get_rgb_delta(expected_output, output))
         results.append(output)
+        break
 
 print('\n'.join(results))
