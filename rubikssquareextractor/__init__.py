@@ -176,20 +176,32 @@ def sort_corners(corner1, corner2, corner3, corner4):
     return results
 
 
-def approx_is_square(approx):
+def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20):
     """
-    Rules:
+    Rules
     - there must be four corners
     - all four lines must be roughly the same length
     - all four corners must be roughly 90 degrees
 
-    The corners will be in order:
+    SIDE_VS_SIDE_THRESHOLD
+        If this is 1 then all 4 sides must be the exact same length.  If it is
+        less than one that all sides must be within the percentage length of
+        the longest side.
+
+    ANGLE_THRESHOLD
+        If this is 0 then all 4 corners must be exactly 90 degrees.  If it
+        is 10 then all four corners must be between 80 and 100 degrees.
+
+    The corners are labelled
 
         A ---- B
         |      |
         |      |
         C ---- D
     """
+
+    assert SIDE_VS_SIDE_THRESHOLD >= 0 and SIDE_VS_SIDE_THRESHOLD <= 1, "SIDE_VS_SIDE_THRESHOLD must be between 0 and 1"
+    assert ANGLE_THRESHOLD >= 0 and ANGLE_THRESHOLD <= 90, "ANGLE_THRESHOLD must be between 0 and 90"
 
     # There must be four corners
     if len(approx) != 4:
@@ -208,7 +220,7 @@ def approx_is_square(approx):
     DC = pixel_distance(D, C)
     distances = (AB, AC, DB, DC)
     max_distance = max(distances)
-    cutoff = int(max_distance * 0.60)
+    cutoff = int(max_distance * SIDE_VS_SIDE_THRESHOLD)
 
     #log.info("approx_is_square A %s, B, %s, C %s, D %s, distance AB %d, AC %d, DB %d, DC %d, max %d, cutoff %d" %
     #         (A, B, C, D, AB, AC, DB, DC, max_distance, cutoff))
@@ -219,9 +231,8 @@ def approx_is_square(approx):
             return False
 
     # all four corners must be roughly 90 degrees
-    angle_threshold = 20
-    min_angle = 90 - angle_threshold
-    max_angle = 90 + angle_threshold
+    min_angle = 90 - ANGLE_THRESHOLD
+    max_angle = 90 + ANGLE_THRESHOLD
 
     # Angle at A
     angle_A = int(math.degrees(get_angle(C, B, A)))
@@ -244,6 +255,31 @@ def approx_is_square(approx):
         return False
 
     return True
+
+
+def square_width_height(approx):
+    """
+    This assumes that approx is a square. Return the width and height of the square.
+    """
+    width = 0
+    height = 0
+
+    # Find the four corners
+    (A, B, C, D) = sort_corners(tuple(approx[0][0]),
+                                tuple(approx[1][0]),
+                                tuple(approx[2][0]),
+                                tuple(approx[3][0]))
+
+    # Find the lengths of all four sides
+    AB = pixel_distance(A, B)
+    AC = pixel_distance(A, C)
+    DB = pixel_distance(D, B)
+    DC = pixel_distance(D, C)
+
+    width = max(AB, DC)
+    height = max(AC, DB)
+
+    return (width, height)
 
 
 def square_root_is_integer(integer):
@@ -290,6 +326,7 @@ class CustomContour(object):
         self.approx = cv2.approxPolyDP(contour, 0.1 * peri, True)
         self.area = cv2.contourArea(contour)
         self.corners = len(self.approx)
+        self.width = None
 
         # compute the center of the contour
         M = cv2.moments(contour)
@@ -305,14 +342,18 @@ class CustomContour(object):
         return "Contour #%d (%s, %s)" % (self.index, self.cX, self.cY)
 
     def is_square(self, target_area=None):
+        AREA_THRESHOLD = 0.25
 
         if not approx_is_square(self.approx):
             return False
 
+        if self.width is None:
+            (self.width, self.height) = square_width_height(self.approx)
+
         if target_area:
             area_ratio = float(target_area / self.area)
 
-            if area_ratio < 0.75 or area_ratio > 1.25:
+            if area_ratio < float(1.0 - AREA_THRESHOLD) or area_ratio > float(1.0 + AREA_THRESHOLD):
                 # log.info("FALSE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
                 return False
             else:
@@ -380,7 +421,7 @@ class CustomContour(object):
 
 class RubiksImage(object):
 
-    def __init__(self, filename, index=0, name='foo', debug=False):
+    def __init__(self, filename, index=0, name=None, debug=False):
         self.filename = filename
         self.index = index
         self.name = name
@@ -391,7 +432,7 @@ class RubiksImage(object):
         self.img_height = None
         self.img_width = None
         self.size = None
-        self.square_area = None
+        self.median_square_area = None
         self.top = None
         self.right = None
         self.bottom = None
@@ -452,32 +493,24 @@ class RubiksImage(object):
 
     def get_contour_neighbors(self, contours, target_con, strict=True):
         """
-        Return stats on how many other contours are in
-        the same 'row' or 'col' as target_con
+        Return stats on how many other contours are in the same 'row' or 'col' as target_con
 
-        ROW_THRESHOLD determines how far up/down we look for other contours
-        COL_THRESHOLD determines how far left/right we look for other contours
+        TODO: This only works if the cube isn't at an angle...would be cool to work all the time
+
+        This is called by get_cube_size() and sanity_check_results()
         """
         row_neighbors = 0
         row_square_neighbors = 0
         col_neighbors = 0
         col_square_neighbors = 0
 
-        # These are percentages of the image width and height
-        if strict:
-            ROW_THRESHOLD = 0.04
-            COL_THRESHOLD = 0.04
-        else:
-            # dwalton this needs some work....it really depends on the
-            # cube size...the smaller the cube the larger the threshold
-            ROW_THRESHOLD = 0.06
-            COL_THRESHOLD = 0.06
+        # Wiggle +/- 75% of the median_square_width
+        WIGGLE_THRESHOLD = 0.75
 
-        width_wiggle = int(self.img_width * COL_THRESHOLD)
-        height_wiggle = int(self.img_height * ROW_THRESHOLD)
-
-        target_cX = target_con.cX
-        target_cY = target_con.cY
+        # width_wiggle determines how far left/right we look for other contours
+        # height_wiggle determines how far up/down we look for other contours
+        width_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
+        height_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
 
         log.debug("get_contour_neighbors() for %s, width_wiggle %s, height_wiggle %s" %
             (target_con, width_wiggle, height_wiggle))
@@ -488,13 +521,13 @@ class RubiksImage(object):
             if con == target_con:
                 continue
 
-            x_delta = abs(con.cX - target_cX)
-            y_delta = abs(con.cY - target_cY)
+            x_delta = abs(con.cX - target_con.cX)
+            y_delta = abs(con.cY - target_con.cY)
 
             if x_delta <= width_wiggle:
                 col_neighbors += 1
 
-                if con.is_square(self.square_area):
+                if con.is_square(self.median_square_area):
                     col_square_neighbors += 1
                     log.debug("%s is a square col neighbor" % con)
                 else:
@@ -505,7 +538,7 @@ class RubiksImage(object):
             if y_delta <= height_wiggle:
                 row_neighbors += 1
 
-                if con.is_square(self.square_area):
+                if con.is_square(self.median_square_area):
                     row_square_neighbors += 1
                     log.debug("%s is a square row neighbor" % con)
                 else:
@@ -513,8 +546,8 @@ class RubiksImage(object):
             else:
                 log.debug("%s delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
 
-        log.debug("get_contour_neighbors() for contour (%d, %d) has row %d, row_square %d, col %d, col_square %d neighbors\n" %
-            (target_cX, target_cY, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
+        log.debug("get_contour_neighbors() for %s has row %d, row_square %d, col %d, col_square %d neighbors\n" %
+            (target_con, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
 
         return (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors)
 
@@ -559,7 +592,7 @@ class RubiksImage(object):
         assert len(result) == num_squares, "sort_by_row_col is returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
-    def remove_non_square_contours(self):
+    def remove_non_square_candidates(self):
         """
         Remove non-square contours from candidates.  Return a list of the ones we removed.
         """
@@ -573,9 +606,11 @@ class RubiksImage(object):
         for x in candidates_to_remove:
             self.candidates.remove(x)
 
+        removed = len(candidates_to_remove)
+        log.info("remove_non_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return candidates_to_remove
 
-    def remove_square_within_square_contours(self):
+    def remove_square_within_square_candidates(self):
         candidates_to_remove = []
 
         # Remove parents with square child contours
@@ -598,8 +633,55 @@ class RubiksImage(object):
             self.candidates.remove(x)
 
         removed = len(candidates_to_remove)
-        log.info("remove_square_within_square_contours() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.info("remove_square_within_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
+
+    def get_median_square_area(self):
+        """
+        Find the median area of all square contours
+        """
+        square_areas = []
+        square_widths = []
+
+        for con in self.candidates:
+            if con.is_square():
+                square_areas.append(int(con.area))
+                square_widths.append(int(con.width))
+
+        square_areas = sorted(square_areas)
+        num_squares = len(square_areas)
+        square_area_index = int(num_squares/2)
+
+        self.median_square_area = int(square_areas[square_area_index])
+        self.median_square_width = int(square_widths[square_area_index])
+
+        log.info("%d squares, median index %d, median area %d, all square areas %s" %\
+            (num_squares, square_area_index, self.median_square_area, ','.join(map(str, square_areas))))
+
+    def get_cube_boundry(self):
+        """
+        Find the top, right, bottom, left boundry of all square contours
+        """
+        assert self.median_square_area is not None, "get_median_square_area() must be called first"
+        self.top    = None
+        self.right  = None
+        self.bottom = None
+        self.left   = None
+
+        for con in self.candidates:
+            if con.is_square(self.median_square_area):
+
+                if self.top is None or con.cY < self.top:
+                    self.top = con.cY
+
+                if self.bottom is None or con.cY > self.bottom:
+                    self.bottom = con.cY
+
+                if self.left is None or con.cX < self.left:
+                    self.left = con.cX
+
+                if self.right is None or con.cX > self.right:
+                    self.right = con.cX
 
     def get_cube_size(self):
         """
@@ -608,34 +690,16 @@ class RubiksImage(object):
         contours in each row/col in data, then sort data and return the
         median entry
         """
+        assert self.median_square_area is not None, "get_median_square_area() must be called first"
         candidates = deepcopy(self.candidates)
-
-        # Find the median area of all square contours and find the top, right,
-        # bottom, left boundry of all square contours
-        square_areas = []
-        for con in candidates:
-            if con.is_square():
-                square_areas.append(int(con.area))
-
-        square_areas = sorted(square_areas)
-        num_squares = len(square_areas)
-        square_area_index = int(num_squares/2)
-        self.square_area = int(square_areas[square_area_index])
-
-        log.info("%d squares, median index %d, median area %d, all square areas %s" %\
-            (num_squares, square_area_index, self.square_area, ','.join(map(str, square_areas))))
 
         # Now find all of the square contours that are the same size (roughly) as the
         # median square size. Look to see how many square neighbors are in the row and
         # col for each square contour.
         data = []
-        top = None
-        right = None
-        bottom = None
-        left = None
 
         for con in self.candidates:
-            if con.is_square(self.square_area):
+            if con.is_square(self.median_square_area):
                 (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
                     self.get_contour_neighbors(self.candidates, con)
                 row_size = row_square_neighbors + 1
@@ -646,43 +710,20 @@ class RubiksImage(object):
                 else:
                     data.append(col_size)
 
-                if top is None or con.cY < top:
-                    top = con.cY
-
-                if bottom is None or con.cY > bottom:
-                    bottom = con.cY
-
-                if left is None or con.cX < left:
-                    left = con.cX
-
-                if right is None or con.cX > right:
-                    right = con.cX
-
         data = sorted(data)
         median_index = int(len(data)/2)
-        median_size = data[median_index]
-
-        log.info("cube size...%d squares, data %s" % (len(data), ','.join(map(str, data))))
-        log.warning("cube size is %d, top %s, right %s, bottom %s, left %s" %\
-            (median_size, top, right, bottom, left))
-
-        self.size = median_size
-        self.top = top
-        self.right = right
-        self.bottom = bottom
-        self.left = left
+        self.size = data[median_index]
+        log.info("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
 
     def remove_contours_outside_cube(self, contours):
+        assert self.median_square_area is not None, "get_median_square_area() must be called first"
         contours_to_remove = []
 
-        # These are percentages of the image width and height
-        ROW_THRESHOLD = 0.12
-        COL_THRESHOLD = 0.10
-
-        top    = self.top    * (1 - ROW_THRESHOLD)
-        bottom = self.bottom * (1 + ROW_THRESHOLD)
-        left   = self.left   * (1 - COL_THRESHOLD)
-        right  = self.right  * (1 + COL_THRESHOLD)
+        # Give a little wiggle room
+        top    = self.top    - int(self.median_square_width/4)
+        bottom = self.bottom + int(self.median_square_width/4)
+        left   = self.left   - int(self.median_square_width/4)
+        right  = self.right  + int(self.median_square_width/4)
 
         for con in contours:
             if con.cY < top or con.cY > bottom or con.cX < left or con.cX > right:
@@ -695,27 +736,25 @@ class RubiksImage(object):
         log.info("remove_contours_outside_cube() %d removed, %d remain" % (removed, len(contours)))
         return True if removed else False
 
-    def remove_small_squares(self):
+    def remove_small_square_candidates(self):
         """
-        Remove squares that are much smaller than self.square_area
+        Remove squares that are much smaller than self.median_square_area
         """
         candidates_to_remove = []
 
         for con in self.candidates:
-            if not con.is_square(self.square_area):
+            if not con.is_square(self.median_square_area):
                 candidates_to_remove.append(con)
-                log.info("remove_small_squares() %s area %d not close to median area %d" % (con, con.area, self.square_area))
+                log.info("remove_small_square_candidates() %s area %d not close to median area %d" % (con, con.area, self.median_square_area))
 
         for con in candidates_to_remove:
             self.candidates.remove(con)
 
         removed = len(candidates_to_remove)
-        log.info("remove_small_squares() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.info("remove_small_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
     def sanity_check_results(self, contours, strict, use_assert, debug=False):
-        """
-        """
 
         # Verify we found the correct number of squares
         num_squares = len(contours)
@@ -774,11 +813,6 @@ class RubiksImage(object):
             # a valid cube. There could be multiple permutations that satisfy this
             # requirement, use the one whose contours result in the largest area.
             for combo in combinations(self.non_square_contours, missing_count):
-
-                #if combo[0].index != 58:
-                #    continue
-                #log.warning("HERE 10 %s" % combo[0])
-
                 tmp_candidates = deepcopy(self.candidates)
                 tmp_candidates.extend(combo)
 
@@ -806,8 +840,11 @@ class RubiksImage(object):
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         # self.draw_cube(gray, None, "00 gray")
 
-        # blur a little...not sure why but most canny examples I've found do this prior to running canny
-        # http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+        # References:
+        #     http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+        #
+        # blur a little...not sure why but most canny examples I've found
+        # do this prior to running canny
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)
         # self.draw_cube(blurred, None, "10 blurred")
 
@@ -820,9 +857,12 @@ class RubiksImage(object):
         dilated = cv2.dilate(canny, kernel, iterations=2)
         self.draw_cube(dilated, None, "30 dilated")
 
-        # find the contours and create a CustomContour object for each...store these in "candidates"
-        # http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
-        # http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
+        # References:
+        #     http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
+        #     http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
+        #
+        # Find the contours and create a CustomContour object for each...store
+        # these in self.candidates
         (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         self.candidates = []
         hierarchy = hierarchy[0]
@@ -838,27 +878,32 @@ class RubiksImage(object):
 
         # Throw away the contours that do not look like squares
         self.draw_cube(self.image, "40 pre non-squares removal #1")
-        self.non_square_contours = self.remove_non_square_contours()
+        self.non_square_contours = self.remove_non_square_candidates()
         self.draw_cube(self.image, "50 post non-squares removal #1")
 
         # Sometimes we find a square within a square due to the black space
         # between the cube squares.  Throw away the outside square (it contains
         # the black edge) and keep the inside square.
-        if self.remove_square_within_square_contours():
+        if self.remove_square_within_square_candidates():
             self.draw_cube(self.image, "60 post square-within-square removal #1")
 
-        # Find the cube size and extreme coordinates of all known squares
-        self.get_cube_size()
+        # Find the median square size, we need that in order to find the
+        # squares that make up the boundry of the cube
+        self.get_median_square_area()
+        self.get_cube_boundry()
 
-        # remove all contours outside those coordinates
+        # remove all contours that are outside the boundry of the cube
         self.remove_contours_outside_cube(self.candidates)
         self.draw_cube(self.image, "70 post outside cube removal")
+
+        # Find the cube size (3x3x3, 4x4x4, etc)
+        self.get_cube_size()
 
         missing = []
 
         if not self.sanity_check_results(self.candidates, strict=True, use_assert=False):
             # remove any squares within the cube that are so small they are obviously not cube squares
-            if self.remove_small_squares():
+            if self.remove_small_square_candidates():
                 self.draw_cube(self.image, "80 post small square removal")
 
             if not self.sanity_check_results(self.candidates, strict=True, use_assert=False):
@@ -869,9 +914,6 @@ class RubiksImage(object):
 
         raw_data = []
         for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
-            # TODO - this needs to be the median (midpoint) since sometime we get the black
-            # edge between squares...that will make the mean darker than we want
-
             # Use the mean value of the contour
             mask = np.zeros(gray.shape, np.uint8)
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
