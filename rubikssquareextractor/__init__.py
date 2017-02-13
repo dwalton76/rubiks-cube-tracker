@@ -420,14 +420,20 @@ class CustomContour(object):
 
 class RubiksImage(object):
 
-    def __init__(self, filename, index=0, name=None, debug=False):
-        self.filename = filename
+    def __init__(self, index=0, name=None, debug=False):
         self.index = index
         self.name = name
+        self.debug = debug
+        self.image = None
+        self.reset()
+
+    def __str__(self):
+        return str(self.name)
+
+    def reset(self):
         self.data = {}
         self.candidates = []
         self.contours_by_index = {}
-        self.debug = debug
         self.img_height = None
         self.img_width = None
         self.size = None
@@ -436,13 +442,6 @@ class RubiksImage(object):
         self.right = None
         self.bottom = None
         self.left = None
-
-        if not os.path.exists(filename):
-            print "ERROR: %s does not exists" % filename
-            sys.exit(1)
-
-    def __str__(self):
-        return self.name
 
     def draw_cube(self, image, desc, missing=[]):
 
@@ -572,7 +571,7 @@ class RubiksImage(object):
                 top_row_left_right.append((cX, cY))
             top_row_left_right = sorted(top_row_left_right)
 
-            log.info("sort_by_row_col() row %d: %s" % (row_index, pformat(top_row_left_right)))
+            log.debug("sort_by_row_col() row %d: %s" % (row_index, pformat(top_row_left_right)))
             contours_to_remove = []
             for (target_cX, target_cY) in top_row_left_right:
                 for con in contours:
@@ -606,7 +605,7 @@ class RubiksImage(object):
             self.candidates.remove(x)
 
         removed = len(candidates_to_remove)
-        log.info("remove_non_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove_non_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return candidates_to_remove
 
     def remove_square_within_square_candidates(self):
@@ -632,7 +631,7 @@ class RubiksImage(object):
             self.candidates.remove(x)
 
         removed = len(candidates_to_remove)
-        log.info("remove_square_within_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove_square_within_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
     def get_median_square_area(self):
@@ -647,15 +646,18 @@ class RubiksImage(object):
                 square_areas.append(int(con.area))
                 square_widths.append(int(con.width))
 
-        square_areas = sorted(square_areas)
-        num_squares = len(square_areas)
-        square_area_index = int(num_squares/2)
+        if square_areas:
+            square_areas = sorted(square_areas)
+            num_squares = len(square_areas)
+            square_area_index = int(num_squares/2)
 
-        self.median_square_area = int(square_areas[square_area_index])
-        self.median_square_width = int(square_widths[square_area_index])
+            self.median_square_area = int(square_areas[square_area_index])
+            self.median_square_width = int(square_widths[square_area_index])
 
-        log.info("%d squares, median index %d, median area %d, all square areas %s" %\
-            (num_squares, square_area_index, self.median_square_area, ','.join(map(str, square_areas))))
+            log.debug("%d squares, median index %d, median area %d, all square areas %s" %\
+                (num_squares, square_area_index, self.median_square_area, ','.join(map(str, square_areas))))
+
+        return True if square_areas else False
 
     def get_cube_boundry(self):
         """
@@ -712,7 +714,7 @@ class RubiksImage(object):
         data = sorted(data)
         median_index = int(len(data)/2)
         self.size = data[median_index]
-        log.info("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
+        log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
 
     def remove_contours_outside_cube(self, contours):
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
@@ -732,7 +734,7 @@ class RubiksImage(object):
             contours.remove(con)
 
         removed = len(contours_to_remove)
-        log.info("remove_contours_outside_cube() %d removed, %d remain" % (removed, len(contours)))
+        log.debug("remove_contours_outside_cube() %d removed, %d remain" % (removed, len(contours)))
         return True if removed else False
 
     def remove_small_square_candidates(self):
@@ -744,13 +746,13 @@ class RubiksImage(object):
         for con in self.candidates:
             if not con.is_square(self.median_square_area):
                 candidates_to_remove.append(con)
-                log.info("remove_small_square_candidates() %s area %d not close to median area %d" % (con, con.area, self.median_square_area))
+                log.debug("remove_small_square_candidates() %s area %d not close to median area %d" % (con, con.area, self.median_square_area))
 
         for con in candidates_to_remove:
             self.candidates.remove(con)
 
         removed = len(candidates_to_remove)
-        log.info("remove_small_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove_small_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
     def sanity_check_results(self, contours):
@@ -786,12 +788,12 @@ class RubiksImage(object):
         missing_count = (self.size * self.size) - len(self.candidates)
         missing = []
 
-        if missing_count:
+        if missing_count > 0:
 
             # Of the non-square contours that we previously removed, ignore the ones that are outside the cube
             self.remove_contours_outside_cube(self.non_square_contours)
-            log.info("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
-                     (missing_count, len(self.non_square_contours)))
+            log.debug("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
+                      (missing_count, len(self.non_square_contours)))
 
             missing_candidates = []
 
@@ -813,14 +815,12 @@ class RubiksImage(object):
 
             if missing_candidates:
                 missing = missing_candidates[0][1]
-            else:
-                raise Exception("Could not find missing squares needed to create a valid cube")
 
         return missing
 
-    def analyze(self):
-        log.warning("Analyze %s" % self.filename)
-        self.image = cv2.imread(self.filename)
+    def analyze(self, webcam):
+        assert self.image is not None, "self.image is None"
+        self.reset()
         (self.img_height, self.img_width) = self.image.shape[:2]
 
         # convert to grayscale
@@ -876,7 +876,10 @@ class RubiksImage(object):
 
         # Find the median square size, we need that in order to find the
         # squares that make up the boundry of the cube
-        self.get_median_square_area()
+        if not self.get_median_square_area():
+            # If we are here there aren't any squares in the image
+            return
+
         self.get_cube_boundry()
 
         # remove all contours that are outside the boundry of the cube
@@ -885,6 +888,10 @@ class RubiksImage(object):
 
         # Find the cube size (3x3x3, 4x4x4, etc)
         self.get_cube_size()
+
+        if self.size == 1:
+            # There isn't a cube in the image
+            return
 
         missing = []
 
@@ -895,6 +902,12 @@ class RubiksImage(object):
 
             if not self.sanity_check_results(self.candidates):
                 missing = self.find_missing_squares()
+
+                if not missing:
+                    if webcam:
+                        return
+                    else:
+                        raise Exception("Could not find missing squares needed to create a valid cube")
                 self.candidates.extend(missing)
 
         self.draw_cube(self.image, "90 Final", missing)
@@ -906,7 +919,7 @@ class RubiksImage(object):
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
             (mean_blue, mean_green, mean_red, _)= map(int, cv2.mean(self.image, mask = mask))
             raw_data.append((mean_red, mean_green, mean_blue))
-        log.info("squares RGB data\n%s\n" % pformat(raw_data))
+        log.debug("squares RGB data\n%s\n" % pformat(raw_data))
 
         squares_per_side = len(raw_data)
         size = int(math.sqrt(squares_per_side))
@@ -931,10 +944,10 @@ class RubiksImage(object):
         else:
             my_indexes = square_indexes
 
-        log.info("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
-        log.info("%s my_indexes\n%s\n" % (self, pformat(my_indexes)))
+        log.debug("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
+        log.debug("%s my_indexes\n%s\n" % (self, pformat(my_indexes)))
         my_indexes = compress_2d_array(my_indexes)
-        log.info("%s my_indexes (final) %s" % (self, str(my_indexes)))
+        log.debug("%s my_indexes (final) %s" % (self, str(my_indexes)))
 
         for index in range(squares_per_side):
             square_index = my_indexes[index]
@@ -945,4 +958,66 @@ class RubiksImage(object):
             # the key and a RGB tuple the value
             self.data[square_index] = (red, green, blue)
 
-        log.info("\n\n\n")
+        log.info("")
+
+    def analyze_file(self, filename):
+
+        if not os.path.exists(filename):
+            print "ERROR: %s does not exists" % filename
+            sys.exit(1)
+
+        log.warning("Analyze %s" % filename)
+        self.image = cv2.imread(filename)
+        self.analyze(webcam=False)
+
+    def draw_circles(self):
+
+        # Just false positives
+        if len(self.candidates) < 4:
+            return
+
+        # dwalton
+        for con in self.candidates:
+            if con.width:
+                cv2.circle(self.image,
+                           #(con.cX + int(con.width/2),
+                           # con.cY + int(con.height/2)),
+                           (con.cX, con.cY),
+                           int(con.width/2),
+                           (255, 255, 255),
+                           2)
+
+    def process_keyboard_input(self):
+        c = cv2.waitKey(10) % 0x100
+
+        if c == 27: # ESC
+            return False
+
+        return True
+
+    def analyze_webcam(self):
+        width = 352
+        height = 240
+
+        # 0 for laptop camera
+        # 1 for usb camera
+        capture = cv2.VideoCapture(0)
+
+        # Set the capture resolution
+        capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
+        capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
+
+        # Create the window and set the size to match the capture resolution
+        cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
+        cv2.resizeWindow("Fig", width*2, height*2)
+
+        while True:
+            (ret, self.image) = capture.read()
+            self.analyze(webcam=True)
+            self.draw_circles()
+            cv2.imshow("Fig", self.image)
+
+            if not self.process_keyboard_input():
+                break
+
+        cv2.destroyWindow("Fig")
