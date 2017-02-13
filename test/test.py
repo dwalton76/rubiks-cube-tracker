@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 from pprint import pformat
-import subprocess
 import json
 import logging
+import os
+import subprocess
 import sys
 
 
@@ -81,22 +82,17 @@ test_cases = (
     ('6x6x6 solved 02',    'test-data/6x6x6-solved-02.txt'),
 )
 
-#test_cases = (
-#    ('3x3x3 random 02',    'test-data/3x3x3-random-02.txt'),
-#    #('4x4x4 random 01',    'test-data/4x4x4-random-01.txt'),
-#)
-
 results = []
 
 for (desc, filename) in test_cases:
-    test_dir = filename[0:-4]
+    test_dir = os.path.abspath(filename[0:-4]) + '/'
     log.info("filename: %s" % filename)
     log.info("test_dir: %s" % test_dir)
 
-    subprocess.call("cp %s/*.png /tmp/" % test_dir, shell=True)
-
     try:
-        output = subprocess.check_output(['rubiks-square-extractor.py']).decode('ascii').splitlines()[0].strip()
+        output = subprocess.check_output(['rubiks-square-extractor.py',
+                                          '--directory',
+                                          test_dir]).decode('ascii').splitlines()[0].strip()
     except subprocess.CalledProcessError:
         print("ERROR: rubiks-square-extractor.py barfed on %s" % filename)
         sys.exit(1)

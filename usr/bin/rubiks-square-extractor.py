@@ -4,6 +4,7 @@ from rubikssquareextractor import RubiksImage
 import argparse
 import json
 import logging
+import os
 import sys
 
 
@@ -25,16 +26,20 @@ logging.addLevelName(logging.ERROR, "\033[91m   %s\033[0m" % logging.getLevelNam
 logging.addLevelName(logging.WARNING, "\033[91m %s\033[0m" % logging.getLevelName(logging.WARNING))
 
 
-if len(sys.argv) > 1:
-    filename = "/tmp/rubiks-side-%s.png" % sys.argv[1]
-    rimg = RubiksImage(filename, debug=True)
+parser = argparse.ArgumentParser("Rubiks Square Extractor")
+parser.add_argument('-d', '--directory', type=str, help='Directory of images to example')
+parser.add_argument('-f', '--filename', type=str, help='Image to example')
+args = parser.parse_args()
+
+if args.filename:
+    rimg = RubiksImage(args.filename, debug=True)
     rimg.analyze()
     print(json.dumps(rimg.data, sort_keys=True))
 else:
     data = {}
 
     for (side_index, side_name) in enumerate(('U', 'L', 'F', 'R', 'B', 'D')):
-        filename = "/tmp/rubiks-side-%s.png" % side_name
+        filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
         rimg = RubiksImage(filename, side_index, side_name)
         rimg.analyze()
         data = merge_two_dicts(data, rimg.data)
