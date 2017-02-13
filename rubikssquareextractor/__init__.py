@@ -47,7 +47,7 @@ def pixel_distance(A, B):
     return math.sqrt(math.pow(col_B - col_A, 2) + math.pow(row_B - row_A, 2))
 
 
-def get_angle(A, B, C, debug=False):
+def get_angle(A, B, C):
     """
     Return the angle at C (in radians) for the triangle formed by A, B, C
     a, b, c are lengths
@@ -81,9 +81,8 @@ def get_angle(A, B, C, debug=False):
         cos_angle = -1
 
     angle_ACB = math.acos(cos_angle)
-    if debug:
-        log.info("get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f, cos_angle %s, angle_ACB %s" %
-                 (A, B, C, a, b, c, pformat(cos_angle), int(math.degrees(angle_ACB))))
+    # log.info("get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f, cos_angle %s, angle_ACB %s" %
+    #          (A, B, C, a, b, c, pformat(cos_angle), int(math.degrees(angle_ACB))))
     return angle_ACB
 
 
@@ -192,7 +191,7 @@ def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20):
         If this is 0 then all 4 corners must be exactly 90 degrees.  If it
         is 10 then all four corners must be between 80 and 100 degrees.
 
-    The corners are labelled
+    The corners are labeled
 
         A ---- B
         |      |
@@ -491,7 +490,7 @@ class RubiksImage(object):
             cv2.imshow(desc, image)
             cv2.waitKey(0)
 
-    def get_contour_neighbors(self, contours, target_con, strict=True):
+    def get_contour_neighbors(self, contours, target_con):
         """
         Return stats on how many other contours are in the same 'row' or 'col' as target_con
 
@@ -754,42 +753,30 @@ class RubiksImage(object):
         log.info("remove_small_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
-    def sanity_check_results(self, contours, strict, use_assert, debug=False):
+    def sanity_check_results(self, contours):
 
         # Verify we found the correct number of squares
         num_squares = len(contours)
         needed_squares = self.size * self.size
 
         if num_squares != needed_squares:
-            if use_assert:
-                assert False, "Should have found %s squares, we found %d" % (needed_squares, num_squares)
-            else:
-                if debug:
-                    log.info("sanity_check_results() False: num_squares %d != needed_squares %d" % (num_squares, needed_squares))
-                return False
+            # log.info("sanity False: num_squares %d != needed_squares %d" % (num_squares, needed_squares))
+            return False
 
         # Verify each row/col has the same number of neighbors
         req_neighbors = self.size - 1
 
         for con in contours:
             (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
-                self.get_contour_neighbors(contours, con, strict)
+                self.get_contour_neighbors(contours, con)
 
             if row_neighbors != req_neighbors:
-                if use_assert:
-                    assert False, "%s has %d row neighbors, must be %d" % (con, row_neighbors, req_neighbors)
-                else:
-                    if debug:
-                        log.info("sanity_check_results() False: row_neighbors %d != req_neighbors %s" % (row_neighbors, req_neighbors))
-                    return False
+                # log.info("sanity False: row_neighbors %d != req_neighbors %s" % (row_neighbors, req_neighbors))
+                return False
 
             if col_neighbors != req_neighbors:
-                if use_assert:
-                    assert False, "%s has %d col neighbors, must be %d" % (con, col_neighbors, req_neighbors)
-                else:
-                    if debug:
-                        log.info("sanity_check_results() False: col_neighbors %d != req_neighbors %s" % (col_neighbors, req_neighbors))
-                    return False
+                # log.info("sanity False: col_neighbors %d != req_neighbors %s" % (col_neighbors, req_neighbors))
+                return False
 
         return True
 
@@ -816,7 +803,7 @@ class RubiksImage(object):
                 tmp_candidates = deepcopy(self.candidates)
                 tmp_candidates.extend(combo)
 
-                if self.sanity_check_results(tmp_candidates, strict=False, use_assert=False):
+                if self.sanity_check_results(tmp_candidates):
                     combo_area = 0
                     for tmp in combo:
                         combo_area += tmp.area
@@ -901,12 +888,12 @@ class RubiksImage(object):
 
         missing = []
 
-        if not self.sanity_check_results(self.candidates, strict=True, use_assert=False):
+        if not self.sanity_check_results(self.candidates):
             # remove any squares within the cube that are so small they are obviously not cube squares
             if self.remove_small_square_candidates():
                 self.draw_cube(self.image, "80 post small square removal")
 
-            if not self.sanity_check_results(self.candidates, strict=True, use_assert=False):
+            if not self.sanity_check_results(self.candidates):
                 missing = self.find_missing_squares()
                 self.candidates.extend(missing)
 
