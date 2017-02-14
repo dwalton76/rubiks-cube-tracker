@@ -873,6 +873,7 @@ class RubiksOpenCV(object):
         square_indexes = compress_2d_array(square_indexes)
         log.debug("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
 
+        self.data = {}
         for index in range(squares_per_side):
             square_index = square_indexes[index]
             (red, green, blue) = raw_data[index]
@@ -952,8 +953,11 @@ class RubiksImage(RubiksOpenCV):
 
 class RubiksVideo(RubiksOpenCV):
 
-    def __init__(self):
+    def __init__(self, webcam):
         self.draw_cube_size = 30
+
+        # 0 for laptop camera, 1 for usb camera, etc
+        self.webcam = webcam
 
     def reset(self, everything):
         RubiksOpenCV.reset(self)
@@ -1057,9 +1061,7 @@ class RubiksVideo(RubiksOpenCV):
         window_width = width * 2
         window_height = height * 2
 
-        # 0 for laptop camera
-        # 1 for usb camera
-        capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture(self.webcam)
 
         # Set the capture resolution
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
@@ -1081,9 +1083,9 @@ class RubiksVideo(RubiksOpenCV):
             self.draw_cube_face(self.draw_cube_size * 3, height - (self.draw_cube_size * 2), self.B_data, 'B')
             self.draw_cube_face(self.draw_cube_size, height - self.draw_cube_size, self.D_data, 'D')
 
-            if self.save_colors and self.size and len(self.candidates) == (self.size * self.size):
+            if self.save_colors and self.size and len(self.data.keys()) == (self.size * self.size):
                 self.total_data = merge_two_dicts(self.total_data, self.data)
-                log.warning("save_colors is now False, %d candidates, size %d" % (len(self.candidates), self.size))
+                log.info("Saved side %s, %d squares" % (self.name, len(self.data.keys())))
 
                 if self.name == 'F':
                     self.F_data = deepcopy(self.data)
@@ -1127,11 +1129,16 @@ class RubiksVideo(RubiksOpenCV):
                         if self.size == 2:
                             cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
                             self.solution = check_output(cmd).strip()
+                            if self.solution == 'Cube is already solved':
+                                self.solution = 'S O L V E D'
                             print self.solution
                         elif self.size == 3:
-                            cmd = ['/usr/local/bin/kociemba', kociemba_string]
-                            self.solution = check_output(cmd).strip()
-                            print self.solution
+                            if kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB':
+                                self.solution = 'S O L V E D'
+                            else:
+                                cmd = ['/usr/local/bin/kociemba', kociemba_string]
+                                self.solution = check_output(cmd).strip()
+                                print self.solution
 
                 else:
                     raise Exception("Invalid side %s" % self.name)
@@ -1155,6 +1162,9 @@ class RubiksVideo(RubiksOpenCV):
 
             if not self.process_keyboard_input():
                 break
+
+            # Sleep 50ms for 20 fps
+            time.sleep(0.05)
 
         capture.release()
         cv2.destroyWindow("Fig")
