@@ -30,6 +30,7 @@ import math
 import numpy as np
 import os
 import sys
+import time
 
 log = logging.getLogger(__name__)
 
@@ -502,7 +503,7 @@ class RubiksImage(object):
         col_neighbors = 0
         col_square_neighbors = 0
 
-        # Wiggle +/- 75% of the median_square_width
+        # Wiggle +/- 75% the median_square_width
         WIGGLE_THRESHOLD = 0.75
 
         # width_wiggle determines how far left/right we look for other contours
@@ -510,8 +511,8 @@ class RubiksImage(object):
         width_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
         height_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
 
-        log.debug("get_contour_neighbors() for %s, width_wiggle %s, height_wiggle %s" %
-            (target_con, width_wiggle, height_wiggle))
+        log.debug("get_contour_neighbors() for %s, median square width %s, width_wiggle %s, height_wiggle %s" %
+            (target_con, self.median_square_width, width_wiggle, height_wiggle))
 
         for con in contours:
 
@@ -648,6 +649,7 @@ class RubiksImage(object):
 
         if square_areas:
             square_areas = sorted(square_areas)
+            square_widths = sorted(square_widths)
             num_squares = len(square_areas)
             square_area_index = int(num_squares/2)
 
@@ -932,13 +934,7 @@ class RubiksImage(object):
                 square_indexes_for_row.append(init_square_index + (row * size) + col)
             square_indexes.append(square_indexes_for_row)
 
-        '''
-        TODO clean this up
-
-        The L, F, R, and B sides are simple, for the U and D sides the cube in
-        the png is rotated by 90 degrees so we need to rotate our array of
-        square indexes by 90 degrees to compensate
-        '''
+        # dwalton - fix test cases then rotate all of the test images and delete this section
         if self.name in ('U', 'D'):
             my_indexes = rotate_2d_array(square_indexes)
         else:
@@ -976,12 +972,9 @@ class RubiksImage(object):
         if len(self.candidates) < 4:
             return
 
-        # dwalton
         for con in self.candidates:
             if con.width:
                 cv2.circle(self.image,
-                           #(con.cX + int(con.width/2),
-                           # con.cY + int(con.height/2)),
                            (con.cX, con.cY),
                            int(con.width/2),
                            (255, 255, 255),
@@ -1019,5 +1012,7 @@ class RubiksImage(object):
 
             if not self.process_keyboard_input():
                 break
+
+            # time.sleep(0.1)
 
         cv2.destroyWindow("Fig")
