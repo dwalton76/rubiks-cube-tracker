@@ -18,7 +18,6 @@ For each png
 
 """
 
-from copy import deepcopy
 from itertools import combinations
 from pprint import pformat
 import argparse
@@ -670,7 +669,6 @@ class RubiksImage(object):
         median entry
         """
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
-        candidates = deepcopy(self.candidates)
 
         # Now find all of the square contours that are the same size (roughly) as the
         # median square size. Look to see how many square neighbors are in the row and
@@ -780,10 +778,7 @@ class RubiksImage(object):
             # a valid cube. There could be multiple permutations that satisfy this
             # requirement, use the one whose contours result in the largest area.
             for combo in combinations(self.non_square_contours, missing_count):
-                tmp_candidates = deepcopy(self.candidates)
-                tmp_candidates.extend(combo)
-
-                if self.sanity_check_results(tmp_candidates):
+                if self.sanity_check_results(self.candidates + list(combo)):
                     combo_area = 0
                     for tmp in combo:
                         combo_area += tmp.area
@@ -890,7 +885,7 @@ class RubiksImage(object):
         self.draw_cube(self.image, "90 Final", missing)
 
         raw_data = []
-        for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
+        for con in self.sort_by_row_col(self.candidates, self.size):
             # Use the mean value of the contour
             mask = np.zeros(gray.shape, np.uint8)
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
