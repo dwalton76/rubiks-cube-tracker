@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-from rubikssquareextractor import RubiksVideo, RubiksImage, merge_two_dicts
+from rubikscubetracker import RubiksVideo, RubiksImage, merge_two_dicts
 import argparse
 import json
 import logging

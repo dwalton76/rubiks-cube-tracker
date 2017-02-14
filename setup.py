@@ -1,15 +1,14 @@
 from setuptools import setup
 
-
 setup(
-    name='rubikssquareextractor',
+    name='rubikscubetracker',
     version='1.0.0',
-    description='Extract rubiks cube RGB values from an image with a cube',
-    keywords='rubiks cube color',
-    url='https://github.com/dwalton76/rubiks-square-extractor',
+    description='Extract rubiks cube RGB values from an image/video',
+    keywords='rubiks cube color opencv',
+    url='https://github.com/dwalton76/rubiks-cube-tracker',
     author='dwalton76',
     author_email='dwalton76@gmail.com',
     license='GPLv3',
-    scripts=['usr/bin/rubiks-square-extractor.py'],
-    packages=['rubikssquareextractor'],
+    scripts=['usr/bin/rubiks-cube-tracker.py'],
+    packages=['rubikscubetracker'],
 )
