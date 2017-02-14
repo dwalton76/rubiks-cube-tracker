@@ -282,28 +282,6 @@ def square_width_height(approx):
     return (width, height)
 
 
-def square_root_is_integer(integer):
-    """
-    Return True if integer's square root is an integer
-    """
-    root = math.sqrt(integer)
-
-    if int(root + 0.5) ** 2 == integer:
-        return True
-    else:
-        return False
-
-
-def rotate_2d_array(original):
-    """
-    http://stackoverflow.com/questions/8421337/rotating-a-two-dimensional-array-in-python
-    """
-    result = []
-    for x in zip(*original[::-1]):
-        result.append(x)
-    return result
-
-
 def compress_2d_array(original):
     """
     Convert 2d array to a 1d array
@@ -435,8 +413,6 @@ class RubiksImage(object):
         self.data = {}
         self.candidates = []
         self.contours_by_index = {}
-        self.img_height = None
-        self.img_width = None
         self.size = None
         self.median_square_area = None
         self.top = None
@@ -823,7 +799,6 @@ class RubiksImage(object):
     def analyze(self, webcam):
         assert self.image is not None, "self.image is None"
         self.reset()
-        (self.img_height, self.img_width) = self.image.shape[:2]
 
         # convert to grayscale
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -934,19 +909,12 @@ class RubiksImage(object):
                 square_indexes_for_row.append(init_square_index + (row * size) + col)
             square_indexes.append(square_indexes_for_row)
 
-        # dwalton - fix test cases then rotate all of the test images and delete this section
-        if self.name in ('U', 'D'):
-            my_indexes = rotate_2d_array(square_indexes)
-        else:
-            my_indexes = square_indexes
-
         log.debug("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
-        log.debug("%s my_indexes\n%s\n" % (self, pformat(my_indexes)))
-        my_indexes = compress_2d_array(my_indexes)
-        log.debug("%s my_indexes (final) %s" % (self, str(my_indexes)))
+        square_indexes = compress_2d_array(square_indexes)
+        log.debug("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
 
         for index in range(squares_per_side):
-            square_index = my_indexes[index]
+            square_index = square_indexes[index]
             (red, green, blue) = raw_data[index]
             log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
 
