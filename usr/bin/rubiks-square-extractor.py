@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-from rubikssquareextractor import RubiksImage, merge_two_dicts
+from rubikssquareextractor import RubiksVideo, RubiksImage, merge_two_dicts
 import argparse
 import json
 import logging
@@ -25,8 +25,8 @@ parser.add_argument('-w', '--webcam', action='store_true', help='examine webcam'
 args = parser.parse_args()
 
 if args.webcam:
-    rimg = RubiksImage(debug=False)
-    rimg.analyze_webcam()
+    rvid = RubiksVideo()
+    rvid.analyze_webcam()
 
 elif args.filename:
     rimg = RubiksImage(debug=True)
@@ -42,8 +42,13 @@ else:
 
     for (side_index, side_name) in enumerate(('U', 'L', 'F', 'R', 'B', 'D')):
         filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
-        rimg = RubiksImage(side_index, side_name)
-        rimg.analyze_file(filename)
-        data = merge_two_dicts(data, rimg.data)
+
+        if os.path.exists(filename):
+            rimg = RubiksImage(side_index, side_name)
+            rimg.analyze_file(filename)
+            data = merge_two_dicts(data, rimg.data)
+        else:
+            print "ERROR: %s does not exist" % filename
+            sys.exit(1)
 
     print(json.dumps(data, sort_keys=True))

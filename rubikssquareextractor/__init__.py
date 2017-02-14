@@ -408,7 +408,7 @@ class CustomContour(object):
         return False
 
 
-class RubiksImage(object):
+class RubiksOpenCV(object):
 
     def __init__(self, index=0, name=None, debug=False):
         self.index = index
@@ -424,68 +424,20 @@ class RubiksImage(object):
         self.data = {}
         self.candidates = []
         self.contours_by_index = {}
-        self.size = None
         self.median_square_area = None
-        self.img_height = None
-        self.img_width = None
         self.top = None
         self.right = None
         self.bottom = None
         self.left = None
 
-    def draw_cube(self, image, desc, missing=[]):
-
-        if not self.debug:
-            return
-
-        log.info("draw_cube() for %s" % desc)
-
-        if self.candidates:
-            to_draw = []
-            to_draw_square = []
-            to_draw_approx = []
-            to_draw_missing = []
-            to_draw_missing_approx = []
-
-            for con in missing:
-                to_draw_missing.append(con.contour)
-                to_draw_missing_approx.append(con.approx)
-
-            for con in self.candidates:
-                if con in missing:
-                    continue
-
-                if con.is_square():
-                    to_draw_square.append(con.contour)
-                    #to_draw_approx.append(con.approx)
-                else:
-                    to_draw.append(con.contour)
-                    to_draw_approx.append(con.approx)
-
-            tmp_image = image.copy()
-            # cons that are squares are in green
-            # for non-squqres the approx is green and contour is blue
-            cv2.drawContours(tmp_image, to_draw, -1, (255, 0, 0), 2)
-            cv2.drawContours(tmp_image, to_draw_approx, -1, (0, 0, 255), 2)
-            cv2.drawContours(tmp_image, to_draw_square, -1, (0, 255, 0), 2)
-
-            if to_draw_missing:
-                cv2.drawContours(tmp_image, to_draw_missing, -1, (0, 255, 255), 2)
-                cv2.drawContours(tmp_image, to_draw_missing_approx, -1, (255, 255, 0), 2)
-
-            cv2.imshow(desc, tmp_image)
-            cv2.waitKey(0)
-        else:
-            cv2.imshow(desc, image)
-            cv2.waitKey(0)
+        # 2 for 2x2x2, 3 for 3x3x3, etc
+        self.size = None
 
     def get_contour_neighbors(self, contours, target_con):
         """
         Return stats on how many other contours are in the same 'row' or 'col' as target_con
 
         TODO: This only works if the cube isn't at an angle...would be cool to work all the time
-
-        This is called by get_cube_size() and sanity_check_results()
         """
         row_neighbors = 0
         row_square_neighbors = 0
@@ -577,7 +529,7 @@ class RubiksImage(object):
             for con in contours_to_remove:
                 contours.remove(con)
 
-        assert len(result) == num_squares, "sort_by_row_col is returning %d squares, it should be %d" % (len(result), num_squares)
+        assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
     def remove_non_square_candidates(self):
@@ -595,7 +547,7 @@ class RubiksImage(object):
             self.candidates.remove(x)
 
         removed = len(candidates_to_remove)
-        log.debug("remove_non_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove-non-square-candidates %d removed, %d remain" % (removed, len(self.candidates)))
         return candidates_to_remove
 
     def remove_square_within_square_candidates(self):
@@ -621,7 +573,7 @@ class RubiksImage(object):
             self.candidates.remove(x)
 
         removed = len(candidates_to_remove)
-        log.debug("remove_square_within_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove-square-within-square-candidates %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
     def get_median_square_area(self):
@@ -701,8 +653,10 @@ class RubiksImage(object):
 
         data = sorted(data)
         median_index = int(len(data)/2)
-        self.size = data[median_index]
-        log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
+
+        if data[median_index] > 1:
+            self.size = data[median_index]
+            log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
 
     def remove_contours_outside_cube(self, contours):
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
@@ -722,7 +676,7 @@ class RubiksImage(object):
             contours.remove(con)
 
         removed = len(contours_to_remove)
-        log.debug("remove_contours_outside_cube() %d removed, %d remain" % (removed, len(contours)))
+        log.debug("remove-contours-outside-cube %d removed, %d remain" % (removed, len(contours)))
         return True if removed else False
 
     def remove_small_square_candidates(self):
@@ -740,7 +694,7 @@ class RubiksImage(object):
             self.candidates.remove(con)
 
         removed = len(candidates_to_remove)
-        log.debug("remove_small_square_candidates() %d removed, %d remain" % (removed, len(self.candidates)))
+        log.debug("remove-small-square-candidates %d removed, %d remain" % (removed, len(self.candidates)))
         return True if removed else False
 
     def sanity_check_results(self, contours):
@@ -805,12 +759,10 @@ class RubiksImage(object):
 
     def analyze(self, webcam):
         assert self.image is not None, "self.image is None"
-        self.reset()
-        (self.img_height, self.img_width) = self.image.shape[:2]
 
         # convert to grayscale
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        # self.draw_cube(gray, None, "00 gray")
+        # self.display_candidates(gray, None, "00 gray")
 
         # References:
         #     http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
@@ -818,16 +770,16 @@ class RubiksImage(object):
         # blur a little...not sure why but most canny examples I've found
         # do this prior to running canny
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-        # self.draw_cube(blurred, None, "10 blurred")
+        # self.display_candidates(blurred, None, "10 blurred")
 
         # canny to find the edges
         canny = cv2.Canny(blurred, 20, 40)
-        # self.draw_cube(canny, None, "20 canny")
+        # self.display_candidates(canny, None, "20 canny")
 
         # dilate the image to make the edge lines thicker
         kernel = np.ones((3,3), np.uint8)
         dilated = cv2.dilate(canny, kernel, iterations=2)
-        self.draw_cube(dilated, None, "30 dilated")
+        self.display_candidates(dilated, None, "30 dilated")
 
         # References:
         #     http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
@@ -849,15 +801,15 @@ class RubiksImage(object):
             index += 1
 
         # Throw away the contours that do not look like squares
-        self.draw_cube(self.image, "40 pre non-squares removal #1")
+        self.display_candidates(self.image, "40 pre non-squares removal #1")
         self.non_square_contours = self.remove_non_square_candidates()
-        self.draw_cube(self.image, "50 post non-squares removal #1")
+        self.display_candidates(self.image, "50 post non-squares removal #1")
 
         # Sometimes we find a square within a square due to the black space
         # between the cube squares.  Throw away the outside square (it contains
         # the black edge) and keep the inside square.
         if self.remove_square_within_square_candidates():
-            self.draw_cube(self.image, "60 post square-within-square removal #1")
+            self.display_candidates(self.image, "60 post square-within-square removal #1")
 
         # Find the median square size, we need that in order to find the
         # squares that make up the boundry of the cube
@@ -869,12 +821,12 @@ class RubiksImage(object):
 
         # remove all contours that are outside the boundry of the cube
         self.remove_contours_outside_cube(self.candidates)
-        self.draw_cube(self.image, "70 post outside cube removal")
+        self.display_candidates(self.image, "70 post outside cube removal")
 
         # Find the cube size (3x3x3, 4x4x4, etc)
         self.get_cube_size()
 
-        if self.size == 1:
+        if self.size <= 1:
             # There isn't a cube in the image
             return
 
@@ -883,7 +835,7 @@ class RubiksImage(object):
         if not self.sanity_check_results(self.candidates):
             # remove any squares within the cube that are so small they are obviously not cube squares
             if self.remove_small_square_candidates():
-                self.draw_cube(self.image, "80 post small square removal")
+                self.display_candidates(self.image, "80 post small square removal")
 
             if not self.sanity_check_results(self.candidates):
                 missing = self.find_missing_squares()
@@ -895,7 +847,7 @@ class RubiksImage(object):
                         raise Exception("Could not find missing squares needed to create a valid cube")
                 self.candidates.extend(missing)
 
-        self.draw_cube(self.image, "90 Final", missing)
+        self.display_candidates(self.image, "90 Final", missing)
 
         raw_data = []
         for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
@@ -932,7 +884,62 @@ class RubiksImage(object):
 
         log.debug("")
 
+
+class RubiksImage(RubiksOpenCV):
+
+    def display_candidates(self, image, desc, missing=[]):
+        """
+        Used to pop up a window at various stages of the process to show the
+        current candidates.  This is only used when debugging else you would
+        have a ton of windows popping up all the time.
+        """
+
+        if not self.debug:
+            return
+
+        log.info("display_candidates() for %s" % desc)
+
+        if self.candidates:
+            to_draw = []
+            to_draw_square = []
+            to_draw_approx = []
+            to_draw_missing = []
+            to_draw_missing_approx = []
+
+            for con in missing:
+                to_draw_missing.append(con.contour)
+                to_draw_missing_approx.append(con.approx)
+
+            for con in self.candidates:
+                if con in missing:
+                    continue
+
+                if con.is_square():
+                    to_draw_square.append(con.contour)
+                    #to_draw_approx.append(con.approx)
+                else:
+                    to_draw.append(con.contour)
+                    to_draw_approx.append(con.approx)
+
+            tmp_image = image.copy()
+            # cons that are squares are in green
+            # for non-squqres the approx is green and contour is blue
+            cv2.drawContours(tmp_image, to_draw, -1, (255, 0, 0), 2)
+            cv2.drawContours(tmp_image, to_draw_approx, -1, (0, 0, 255), 2)
+            cv2.drawContours(tmp_image, to_draw_square, -1, (0, 255, 0), 2)
+
+            if to_draw_missing:
+                cv2.drawContours(tmp_image, to_draw_missing, -1, (0, 255, 255), 2)
+                cv2.drawContours(tmp_image, to_draw_missing_approx, -1, (255, 255, 0), 2)
+
+            cv2.imshow(desc, tmp_image)
+            cv2.waitKey(0)
+        else:
+            cv2.imshow(desc, image)
+            cv2.waitKey(0)
+
     def analyze_file(self, filename):
+        self.reset()
 
         if not os.path.exists(filename):
             print "ERROR: %s does not exists" % filename
@@ -942,7 +949,35 @@ class RubiksImage(object):
         self.image = cv2.imread(filename)
         self.analyze(webcam=False)
 
+
+class RubiksVideo(RubiksOpenCV):
+
+    def __init__(self):
+        self.draw_cube_size = 30
+
+    def reset(self, everything):
+        RubiksOpenCV.reset(self)
+
+        if everything:
+            self.U_data = {}
+            self.L_data = {}
+            self.F_data = {}
+            self.R_data = {}
+            self.B_data = {}
+            self.D_data = {}
+            self.save_colors = False
+            self.solution = None
+            self.name = 'F'
+            self.index = 2
+            self.total_data = {}
+
+    def display_candidates(self, image, desc, missing=[]):
+        pass
+
     def draw_circles(self):
+        """
+        Draw a circle for each contour in self.candidates
+        """
 
         # Just false positives
         if len(self.candidates) < 4:
@@ -956,37 +991,31 @@ class RubiksImage(object):
                            (255, 255, 255),
                            2)
 
-    def process_keyboard_input(self):
-        c = cv2.waitKey(10) % 0x100
-
-        if c == 27: # ESC
-            return False
-
-        # processing depending on the character
-        if 32 <= c and c < 128:
-            cc = chr(c).lower()
-
-            # EXTRACT COLORS!!!
-            if cc == ' ':
-                self.save_colors = True
-
-        return True
-
     def draw_cube_face(self, start_x, start_y, side_data, desc):
-        cube_width = 30
+        """
+        Draw a rubiks cube face on the video
+        """
         x = start_x
         y = start_y
 
         if not side_data:
-            cv2.rectangle(self.image, (x, y), (x + cube_width, y + cube_width), (0, 0, 0), -1)
+            cv2.rectangle(self.image,
+                          (x, y),
+                          (x + self.draw_cube_size, y + self.draw_cube_size),
+                          (0, 0, 0),
+                          -1)
             return
 
         num_squares = len(side_data.keys())
         size = int(math.sqrt(num_squares))
         gap = 3
-        square_width = int((cube_width - ((size + 1) * gap))/size)
+        square_width = int((self.draw_cube_size - ((size + 1) * gap))/size)
 
-        cv2.rectangle(self.image, (x, y), (x + cube_width, y + cube_width), (0, 0, 0), -1)
+        cv2.rectangle(self.image,
+                      (x, y),
+                      (x + self.draw_cube_size, y + self.draw_cube_size),
+                      (0, 0, 0),
+                      -1)
         x += gap
         y += gap
 
@@ -1005,22 +1034,26 @@ class RubiksImage(object):
             else:
                 x += square_width + gap
 
-    def analyze_webcam(self):
-        width = 352
-        height = 240
+    def process_keyboard_input(self):
+        c = cv2.waitKey(10) % 0x100
 
-        self.name = 'F'
-        self.index = 2
-        self.save_colors = False
-        total_data = {}
-        prev_data = {}
-        U_data = {}
-        L_data = {}
-        F_data = {}
-        R_data = {}
-        B_data = {}
-        D_data = {}
+        if c == 27: # ESC
+            return False
 
+        # processing depending on the character
+        if 32 <= c and c < 128:
+            cc = chr(c).lower()
+
+            # EXTRACT COLORS!!!
+            if cc == ' ':
+                self.save_colors = True
+            elif cc == 'r':
+                self.reset(True)
+
+        return True
+
+    def analyze_webcam(self, width=352, height=240):
+        self.reset(True)
         window_width = width * 2
         window_height = height * 2
 
@@ -1032,8 +1065,6 @@ class RubiksImage(object):
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
 
-        solution = None
-
         # Create the window and set the size to match the capture resolution
         cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
         cv2.resizeWindow("Fig", window_width, window_height)
@@ -1042,77 +1073,74 @@ class RubiksImage(object):
             (ret, self.image) = capture.read()
             self.analyze(webcam=True)
             self.draw_circles()
-            #self.draw_cube_face(0, 0, prev_data, 'current')
 
-            draw_cube_size = 30
-            self.draw_cube_face(draw_cube_size, height - (draw_cube_size * 3), U_data, 'U')
-            self.draw_cube_face(draw_cube_size * 0, height - (draw_cube_size * 2), L_data, 'L')
-            self.draw_cube_face(draw_cube_size * 1, height - (draw_cube_size * 2), F_data, 'F')
-            self.draw_cube_face(draw_cube_size * 2, height - (draw_cube_size * 2), R_data, 'R')
-            self.draw_cube_face(draw_cube_size * 3, height - (draw_cube_size * 2), B_data, 'B')
-            self.draw_cube_face(draw_cube_size, height - draw_cube_size, D_data, 'D')
+            self.draw_cube_face(self.draw_cube_size, height - (self.draw_cube_size * 3), self.U_data, 'U')
+            self.draw_cube_face(self.draw_cube_size * 0, height - (self.draw_cube_size * 2), self.L_data, 'L')
+            self.draw_cube_face(self.draw_cube_size * 1, height - (self.draw_cube_size * 2), self.F_data, 'F')
+            self.draw_cube_face(self.draw_cube_size * 2, height - (self.draw_cube_size * 2), self.R_data, 'R')
+            self.draw_cube_face(self.draw_cube_size * 3, height - (self.draw_cube_size * 2), self.B_data, 'B')
+            self.draw_cube_face(self.draw_cube_size, height - self.draw_cube_size, self.D_data, 'D')
 
             if self.save_colors and self.size and len(self.candidates) == (self.size * self.size):
-                total_data = merge_two_dicts(total_data, self.data)
+                self.total_data = merge_two_dicts(self.total_data, self.data)
+                log.warning("save_colors is now False, %d candidates, size %d" % (len(self.candidates), self.size))
 
                 if self.name == 'F':
-                    F_data = deepcopy(self.data)
+                    self.F_data = deepcopy(self.data)
                     self.name = 'R'
                     self.index = 3
 
                 elif self.name == 'R':
-                    R_data = deepcopy(self.data)
+                    self.R_data = deepcopy(self.data)
                     self.name = 'B'
                     self.index = 4
 
                 elif self.name == 'B':
-                    B_data = deepcopy(self.data)
+                    self.B_data = deepcopy(self.data)
                     self.name = 'L'
                     self.index = 1
 
                 elif self.name == 'L':
-                    L_data = deepcopy(self.data)
+                    self.L_data = deepcopy(self.data)
                     self.name = 'U'
                     self.index = 0
 
                 elif self.name == 'U':
-                    U_data = deepcopy(self.data)
+                    self.U_data = deepcopy(self.data)
                     self.name = 'D'
                     self.index = 5
 
                 elif self.name == 'D':
-                    D_data = deepcopy(self.data)
+                    self.D_data = deepcopy(self.data)
                     self.name = 'F'
                     self.index = 2
-                    print "Total Data"
-                    print(json.dumps(total_data, sort_keys=True))
-                    print('\n')
+                    print(json.dumps(self.total_data, sort_keys=True) + '\n')
 
-                    color_resolver = RubiksColorSolverGeneric(self.size)
-                    color_resolver.enter_scan_data(total_data)
-                    color_resolver.crunch_colors()
-                    print "Final Colors"
-                    #print(json.dumps(color_resolver.cube_for_json(), sort_keys=True))
-                    kociemba_string = ''.join(color_resolver.cube_for_kociemba_strict())
-                    print(kociemba_string)
+                    if self.size in (2, 3):
+                        color_resolver = RubiksColorSolverGeneric(self.size)
+                        color_resolver.enter_scan_data(self.total_data)
+                        color_resolver.crunch_colors()
+                        print "Final Colors"
+                        kociemba_string = ''.join(color_resolver.cube_for_kociemba_strict())
+                        print(kociemba_string)
 
-                    if self.size == 2:
-                        cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
-                        solution = check_output(cmd).strip()
-                        print solution
-                    elif self.size == 3:
-                        cmd = ['/usr/local/bin/kociemba', kociemba_string]
-                        solution = check_output(cmd).strip()
-                        print solution
+                        if self.size == 2:
+                            cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
+                            self.solution = check_output(cmd).strip()
+                            print self.solution
+                        elif self.size == 3:
+                            cmd = ['/usr/local/bin/kociemba', kociemba_string]
+                            self.solution = check_output(cmd).strip()
+                            print self.solution
 
                 else:
                     raise Exception("Invalid side %s" % self.name)
 
+                self.reset(False)
                 self.save_colors = False
-                prev_data = self.data
 
-            if solution:
-                slist = solution.split()
+            if self.solution:
+                slist = self.solution.split()
                 row = 1
 
                 while slist:
