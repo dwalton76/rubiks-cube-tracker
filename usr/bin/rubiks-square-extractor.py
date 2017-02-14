@@ -1,20 +1,11 @@
 #!/usr/bin/env python2
 
-from rubikssquareextractor import RubiksImage
+from rubikssquareextractor import RubiksImage, merge_two_dicts
 import argparse
 import json
 import logging
 import os
 import sys
-
-
-def merge_two_dicts(x, y):
-    """
-    Given two dicts, merge them into a new dict as a shallow copy.
-    """
-    z = x.copy()
-    z.update(y)
-    return z
 
 
 # Logging

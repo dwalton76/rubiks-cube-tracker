@@ -18,6 +18,7 @@ For each png
 
 """
 
+from copy import deepcopy
 from itertools import combinations
 from pprint import pformat
 import argparse
@@ -32,6 +33,15 @@ import sys
 import time
 
 log = logging.getLogger(__name__)
+
+
+def merge_two_dicts(x, y):
+    """
+    Given two dicts, merge them into a new dict as a shallow copy.
+    """
+    z = x.copy()
+    z.update(y)
+    return z
 
 
 def pixel_distance(A, B):
@@ -414,6 +424,8 @@ class RubiksImage(object):
         self.contours_by_index = {}
         self.size = None
         self.median_square_area = None
+        self.img_height = None
+        self.img_width = None
         self.top = None
         self.right = None
         self.bottom = None
@@ -486,8 +498,8 @@ class RubiksImage(object):
         width_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
         height_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
 
-        log.debug("get_contour_neighbors() for %s, median square width %s, width_wiggle %s, height_wiggle %s" %
-            (target_con, self.median_square_width, width_wiggle, height_wiggle))
+        #log.debug("get_contour_neighbors() for %s, median square width %s, width_wiggle %s, height_wiggle %s" %
+        #    (target_con, self.median_square_width, width_wiggle, height_wiggle))
 
         for con in contours:
 
@@ -520,8 +532,8 @@ class RubiksImage(object):
             else:
                 log.debug("%s delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
 
-        log.debug("get_contour_neighbors() for %s has row %d, row_square %d, col %d, col_square %d neighbors\n" %
-            (target_con, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
+        #log.debug("get_contour_neighbors() for %s has row %d, row_square %d, col %d, col_square %d neighbors\n" %
+        #    (target_con, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
 
         return (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors)
 
@@ -640,7 +652,6 @@ class RubiksImage(object):
         """
         Find the top, right, bottom, left boundry of all square contours
         """
-        assert self.median_square_area is not None, "get_median_square_area() must be called first"
         self.top    = None
         self.right  = None
         self.bottom = None
@@ -668,7 +679,6 @@ class RubiksImage(object):
         contours in each row/col in data, then sort data and return the
         median entry
         """
-        assert self.median_square_area is not None, "get_median_square_area() must be called first"
 
         # Now find all of the square contours that are the same size (roughly) as the
         # median square size. Look to see how many square neighbors are in the row and
@@ -794,6 +804,7 @@ class RubiksImage(object):
     def analyze(self, webcam):
         assert self.image is not None, "self.image is None"
         self.reset()
+        (self.img_height, self.img_width) = self.image.shape[:2]
 
         # convert to grayscale
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -885,7 +896,7 @@ class RubiksImage(object):
         self.draw_cube(self.image, "90 Final", missing)
 
         raw_data = []
-        for con in self.sort_by_row_col(self.candidates, self.size):
+        for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
             # Use the mean value of the contour
             mask = np.zeros(gray.shape, np.uint8)
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
@@ -911,13 +922,14 @@ class RubiksImage(object):
         for index in range(squares_per_side):
             square_index = square_indexes[index]
             (red, green, blue) = raw_data[index]
-            log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
+            # dwalton
+            # log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
 
             # self.data is a dict where the square number (as an int) will be
             # the key and a RGB tuple the value
             self.data[square_index] = (red, green, blue)
 
-        log.info("")
+        # log.info("")
 
     def analyze_file(self, filename):
 
@@ -949,11 +961,64 @@ class RubiksImage(object):
         if c == 27: # ESC
             return False
 
+        # processing depending on the character
+        if 32 <= c and c < 128:
+            cc = chr(c).lower()
+
+            # EXTRACT COLORS!!!
+            if cc == ' ':
+                self.save_colors = True
+
         return True
+
+    def draw_cube_face(self, start_x, start_y, side_data, desc):
+        cube_width = 30
+        x = start_x
+        y = start_y
+
+        if not side_data:
+            cv2.rectangle(self.image, (x, y), (x + cube_width, y + cube_width), (0, 0, 0), -1)
+            return
+
+        num_squares = len(side_data.keys())
+        size = int(math.sqrt(num_squares))
+        gap = 3
+        square_width = int((cube_width - ((size + 1) * gap))/size)
+
+        cv2.rectangle(self.image, (x, y), (x + cube_width, y + cube_width), (0, 0, 0), -1)
+        x += gap
+        y += gap
+
+        for (index, square_index) in enumerate(sorted(side_data.keys())):
+            (red, green, blue) = side_data[square_index]
+
+            cv2.rectangle((self.image),
+                          (x, y),
+                          (x + square_width, y + square_width),
+                          (blue, green, red),
+                          -1)
+
+            if (index + 1) % size == 0:
+                y += gap + square_width
+                x = start_x + gap
+            else:
+                x += square_width + gap
 
     def analyze_webcam(self):
         width = 352
         height = 240
+
+        self.name = 'F'
+        self.index = 2
+        self.save_colors = False
+        total_data = {}
+        prev_data = {}
+        U_data = {}
+        L_data = {}
+        F_data = {}
+        R_data = {}
+        B_data = {}
+        D_data = {}
 
         # 0 for laptop camera
         # 1 for usb camera
@@ -963,14 +1028,66 @@ class RubiksImage(object):
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
 
+        window_width = width * 2
+        window_height = height * 2
+
         # Create the window and set the size to match the capture resolution
         cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
-        cv2.resizeWindow("Fig", width*2, height*2)
+        cv2.resizeWindow("Fig", window_width, window_height)
 
         while True:
             (ret, self.image) = capture.read()
             self.analyze(webcam=True)
             self.draw_circles()
+            #self.draw_cube_face(0, 0, prev_data, 'current')
+
+            draw_cube_size = 30
+            self.draw_cube_face(draw_cube_size, height - (draw_cube_size * 3), U_data, 'U')
+            self.draw_cube_face(draw_cube_size * 0, height - (draw_cube_size * 2), L_data, 'L')
+            self.draw_cube_face(draw_cube_size * 1, height - (draw_cube_size * 2), F_data, 'F')
+            self.draw_cube_face(draw_cube_size * 2, height - (draw_cube_size * 2), R_data, 'R')
+            self.draw_cube_face(draw_cube_size * 3, height - (draw_cube_size * 2), B_data, 'B')
+            self.draw_cube_face(draw_cube_size, height - draw_cube_size, D_data, 'D')
+
+            if self.save_colors and self.size and len(self.candidates) == (self.size * self.size):
+                total_data = merge_two_dicts(total_data, self.data)
+
+                if self.name == 'F':
+                    F_data = deepcopy(self.data)
+                    self.name = 'R'
+                    self.index = 3
+
+                elif self.name == 'R':
+                    R_data = deepcopy(self.data)
+                    self.name = 'B'
+                    self.index = 4
+
+                elif self.name == 'B':
+                    B_data = deepcopy(self.data)
+                    self.name = 'L'
+                    self.index = 1
+
+                elif self.name == 'L':
+                    L_data = deepcopy(self.data)
+                    self.name = 'U'
+                    self.index = 0
+
+                elif self.name == 'U':
+                    U_data = deepcopy(self.data)
+                    self.name = 'D'
+                    self.index = 5
+
+                elif self.name == 'D':
+                    D_data = deepcopy(self.data)
+                    self.name = 'F'
+                    self.index = 2
+                    print(json.dumps(total_data, sort_keys=True))
+                else:
+                    raise Exception("Invalid side %s" % self.name)
+
+                self.save_colors = False
+                prev_data = self.data
+
             cv2.imshow("Fig", self.image)
 
             if not self.process_keyboard_input():
