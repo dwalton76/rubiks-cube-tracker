@@ -18,9 +18,11 @@ For each png
 
 """
 
+from rubikscolorresolver import RubiksColorSolverGeneric
 from copy import deepcopy
 from itertools import combinations
 from pprint import pformat
+from subprocess import check_output
 import argparse
 import cv2
 import logging
@@ -922,14 +924,13 @@ class RubiksImage(object):
         for index in range(squares_per_side):
             square_index = square_indexes[index]
             (red, green, blue) = raw_data[index]
-            # dwalton
-            # log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
+            log.debug("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
 
             # self.data is a dict where the square number (as an int) will be
             # the key and a RGB tuple the value
             self.data[square_index] = (red, green, blue)
 
-        # log.info("")
+        log.debug("")
 
     def analyze_file(self, filename):
 
@@ -1030,6 +1031,7 @@ class RubiksImage(object):
 
         window_width = width * 2
         window_height = height * 2
+        solution = None
 
         # Create the window and set the size to match the capture resolution
         cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
@@ -1081,13 +1083,31 @@ class RubiksImage(object):
                     D_data = deepcopy(self.data)
                     self.name = 'F'
                     self.index = 2
+                    print "Total Data"
                     print(json.dumps(total_data, sort_keys=True))
+                    print('\n')
+
+                    color_resolver = RubiksColorSolverGeneric(self.size)
+                    color_resolver.enter_scan_data(total_data)
+                    color_resolver.crunch_colors()
+                    print "Final Colors"
+                    #print(json.dumps(color_resolver.cube_for_json(), sort_keys=True))
+                    kociemba_string = ''.join(color_resolver.cube_for_kociemba_strict())
+                    print(kociemba_string)
+
+                    if self.size == 2:
+                        cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
+                        solution = check_output(cmd).strip()
+                        print solution
+
                 else:
                     raise Exception("Invalid side %s" % self.name)
 
                 self.save_colors = False
                 prev_data = self.data
 
+            if solution:
+                cv2.putText(self.image, solution, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             cv2.imshow("Fig", self.image)
 
             if not self.process_keyboard_input():
