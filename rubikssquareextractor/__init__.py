@@ -1021,6 +1021,9 @@ class RubiksImage(object):
         B_data = {}
         D_data = {}
 
+        window_width = width * 2
+        window_height = height * 2
+
         # 0 for laptop camera
         # 1 for usb camera
         capture = cv2.VideoCapture(0)
@@ -1029,8 +1032,6 @@ class RubiksImage(object):
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
 
-        window_width = width * 2
-        window_height = height * 2
         solution = None
 
         # Create the window and set the size to match the capture resolution
@@ -1099,6 +1100,10 @@ class RubiksImage(object):
                         cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
                         solution = check_output(cmd).strip()
                         print solution
+                    elif self.size == 3:
+                        cmd = ['/usr/local/bin/kociemba', kociemba_string]
+                        solution = check_output(cmd).strip()
+                        print solution
 
                 else:
                     raise Exception("Invalid side %s" % self.name)
@@ -1107,12 +1112,21 @@ class RubiksImage(object):
                 prev_data = self.data
 
             if solution:
-                cv2.putText(self.image, solution, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                slist = solution.split()
+                row = 1
+
+                while slist:
+                    to_display = min(12, len(slist))
+                    cv2.putText(self.image, ' '.join(slist[0:to_display]), (10, 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                    if to_display == len(slist):
+                        break
+                    else:
+                        slist = slist[to_display:]
+                    row += 1
             cv2.imshow("Fig", self.image)
 
             if not self.process_keyboard_input():
                 break
 
-            # time.sleep(0.1)
-
+        capture.release()
         cv2.destroyWindow("Fig")
