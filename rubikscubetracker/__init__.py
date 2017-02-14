@@ -1127,7 +1127,7 @@ class RubiksVideo(RubiksOpenCV):
                         print(kociemba_string)
 
                         if self.size == 2:
-                            cmd = ['./rubiks_2x2x2_solver.py', kociemba_string]
+                            cmd = ['rubiks_2x2x2_solver.py', kociemba_string]
                             self.solution = check_output(cmd).strip()
                             if self.solution == 'Cube is already solved':
                                 self.solution = 'S O L V E D'
@@ -1136,7 +1136,7 @@ class RubiksVideo(RubiksOpenCV):
                             if kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB':
                                 self.solution = 'S O L V E D'
                             else:
-                                cmd = ['/usr/local/bin/kociemba', kociemba_string]
+                                cmd = ['kociemba', kociemba_string]
                                 self.solution = check_output(cmd).strip()
                                 print self.solution
 
