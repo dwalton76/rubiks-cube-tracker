@@ -1102,8 +1102,12 @@ class RubiksVideo(RubiksOpenCV):
 
         while True:
             (ret, self.image) = capture.read()
-            self.analyze(webcam=True)
-            self.draw_circles()
+
+            # If we've already solve the cube and have instructions printed on the
+            # screen don't bother looking for the cube in the image
+            if not self.solution:
+                self.analyze(webcam=True)
+                self.draw_circles()
 
             self.draw_cube_face(self.draw_cube_size, height - (self.draw_cube_size * 3), self.U_data, 'U')
             self.draw_cube_face(self.draw_cube_size * 0, height - (self.draw_cube_size * 2), self.L_data, 'L')

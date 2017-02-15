@@ -2,9 +2,9 @@
 Analyze an image, directory of images, or video feed to locate a rubiks cube.
 The RGB values for each square will be printed to STDOUT.
 
-This works for 2x2x2, 3x3x3, 4x4x4, 5x5x5, and 6x6x6 cubes.  7x7x7 and larger
-should also work if all of the square are the same size. I have not tested
-larger than a 6x6x6.
+This works for 2x2x2, 3x3x3, 4x4x4, 5x5x5, and 6x6x6 cubes.  6x6x6 is the
+largest cube I have test with but 7x7x7 and larger should also work if all
+of the squares are the same size.
 
 If you are using the --webcam option a solution will be displayed on the screen
 for 2x2x2, 3x3x3 and 4x4x4 cubes.  I have a solver for 5x5x5 but it takes about
@@ -28,13 +28,16 @@ Please follow the README instructions there to install the solvers you are inter
 ## How To Use
 
 ### Web Camera
-- `--webcam 0` means use /dev/video0, `--webcam 1` means use /dev/video1, etc
-- press the SPACEBAR to scan a side
-- you MUST scan the sides in F R B L U D order
-- press "r" to reset
+
 ```
 $ rubiks-cube-tracker.py --webcam 0
 ```
+
+- `--webcam 0` means use /dev/video0, `--webcam 1` means use /dev/video1, etc
+- Press the SPACEBAR to scan a side
+- You MUST scan the sides in F R B L U D order. Once you've scanned L you want to put F back in front and then flip forward one time to scan U, this way U is oriented correctly.  To go from U to D just flip forward two times. Once you've scanned D, D will be facing the camera, U will be facing you and F will be on top.
+- Flip the cube so that U is on top and F is facing you, then follow the solve steps on the screen.
+- Press "r" to reset
 
 ### Single File
 Analyze a single image.  This is only used for debugging and will pop up
