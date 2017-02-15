@@ -304,6 +304,24 @@ def compress_2d_array(original):
     return result
 
 
+def get_side_name(size, square_index):
+    squares_per_side = size * size
+
+    if square_index <= squares_per_side:
+        return 'U'
+    elif square_index <= (squares_per_side * 2):
+        return 'L'
+    elif square_index <= (squares_per_side * 3):
+        return 'F'
+    elif square_index <= (squares_per_side * 4):
+        return 'R'
+    elif square_index <= (squares_per_side * 5):
+        return 'B'
+    elif square_index <= (squares_per_side * 6):
+        return 'D'
+    else:
+        raise Exception("We should not be here")
+
 class CustomContour(object):
 
     def __init__(self, rubiks_parent, index, contour, heirarchy):
@@ -969,6 +987,15 @@ class RubiksVideo(RubiksOpenCV):
             self.R_data = {}
             self.B_data = {}
             self.D_data = {}
+
+            # Used to display the cube with bright HTMLish colors
+            self.U_html = {}
+            self.L_html = {}
+            self.F_html = {}
+            self.R_html = {}
+            self.B_html = {}
+            self.D_html = {}
+
             self.save_colors = False
             self.solution = None
             self.name = 'F'
@@ -1003,11 +1030,12 @@ class RubiksVideo(RubiksOpenCV):
         y = start_y
 
         if not side_data:
-            cv2.rectangle(self.image,
-                          (x, y),
-                          (x + self.draw_cube_size, y + self.draw_cube_size),
-                          (0, 0, 0),
-                          -1)
+            if not desc.endswith('-html'):
+                cv2.rectangle(self.image,
+                              (x, y),
+                              (x + self.draw_cube_size, y + self.draw_cube_size),
+                              (0, 0, 0),
+                              -1)
             return
 
         num_squares = len(side_data.keys())
@@ -1066,6 +1094,7 @@ class RubiksVideo(RubiksOpenCV):
         # Set the capture resolution
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
         capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
+        # capture.set(cv2.cv.CV_CAP_PROP_SATURATION, 0.10)
 
         # Create the window and set the size to match the capture resolution
         cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
@@ -1082,6 +1111,13 @@ class RubiksVideo(RubiksOpenCV):
             self.draw_cube_face(self.draw_cube_size * 2, height - (self.draw_cube_size * 2), self.R_data, 'R')
             self.draw_cube_face(self.draw_cube_size * 3, height - (self.draw_cube_size * 2), self.B_data, 'B')
             self.draw_cube_face(self.draw_cube_size, height - self.draw_cube_size, self.D_data, 'D')
+
+            self.draw_cube_face(width - (self.draw_cube_size * 4), height - (self.draw_cube_size * 3), self.U_html, 'U-html')
+            self.draw_cube_face(width - (self.draw_cube_size * 5), height - (self.draw_cube_size * 2), self.L_html, 'L-html')
+            self.draw_cube_face(width - (self.draw_cube_size * 4), height - (self.draw_cube_size * 2), self.F_html, 'F-html')
+            self.draw_cube_face(width - (self.draw_cube_size * 3), height - (self.draw_cube_size * 2), self.R_html, 'R-html')
+            self.draw_cube_face(width - (self.draw_cube_size * 2), height - (self.draw_cube_size * 2), self.B_html, 'B-html')
+            self.draw_cube_face(width - (self.draw_cube_size * 4), height - self.draw_cube_size, self.D_html, 'D-html')
 
             if self.save_colors and self.size and len(self.data.keys()) == (self.size * self.size):
                 self.total_data = merge_two_dicts(self.total_data, self.data)
@@ -1118,13 +1154,32 @@ class RubiksVideo(RubiksOpenCV):
                     self.index = 2
                     print(json.dumps(self.total_data, sort_keys=True) + '\n')
 
-                    if self.size in (2, 3):
+                    if self.size in (2, 3, 4):
                         color_resolver = RubiksColorSolverGeneric(self.size)
                         color_resolver.enter_scan_data(self.total_data)
                         color_resolver.crunch_colors()
                         print "Final Colors"
-                        kociemba_string = ''.join(color_resolver.cube_for_kociemba_strict())
+                        final_colors = color_resolver.cube_for_json()
+                        kociemba_string = final_colors['kociemba']
                         print(kociemba_string)
+
+                        for (square_index, value) in final_colors['squares'].items():
+                            html_colors = final_colors['sides'][value['finalSide']]['colorHTML']
+                            rgb = (html_colors['red'], html_colors['green'], html_colors['blue'])
+                            side_name = get_side_name(self.size, square_index)
+
+                            if side_name == 'U':
+                                self.U_html[square_index] = rgb
+                            elif side_name == 'L':
+                                self.L_html[square_index] = rgb
+                            elif side_name == 'F':
+                                self.F_html[square_index] = rgb
+                            elif side_name == 'R':
+                                self.R_html[square_index] = rgb
+                            elif side_name == 'B':
+                                self.B_html[square_index] = rgb
+                            elif side_name == 'D':
+                                self.D_html[square_index] = rgb
 
                         if self.size == 2:
                             cmd = ['rubiks_2x2x2_solver.py', kociemba_string]
@@ -1132,12 +1187,21 @@ class RubiksVideo(RubiksOpenCV):
                             if self.solution == 'Cube is already solved':
                                 self.solution = 'S O L V E D'
                             print self.solution
+
                         elif self.size == 3:
                             if kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB':
                                 self.solution = 'S O L V E D'
                             else:
                                 cmd = ['kociemba', kociemba_string]
                                 self.solution = check_output(cmd).strip()
+                                print self.solution
+
+                        elif self.size == 4:
+                            if kociemba_string == 'UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB':
+                                self.solution = 'S O L V E D'
+                            else:
+                                cmd = 'cd ~/rubiks-cube-solvers/4x4x4/TPR-4x4x4-Solver/ && java -cp .:threephase.jar:twophase.jar solver %s' % kociemba_string
+                                self.solution = check_output(cmd, shell=True).splitlines()[-1].strip()
                                 print self.solution
 
                 else:
@@ -1151,7 +1215,7 @@ class RubiksVideo(RubiksOpenCV):
                 row = 1
 
                 while slist:
-                    to_display = min(12, len(slist))
+                    to_display = min(10, len(slist))
                     cv2.putText(self.image, ' '.join(slist[0:to_display]), (10, 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
                     if to_display == len(slist):
                         break
