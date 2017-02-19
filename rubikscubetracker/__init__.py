@@ -410,6 +410,15 @@ class CustomContour(object):
             return self.rubiks_parent.contours_by_index[parent]
         return None
 
+    def parent_is_candidate(self):
+        parent_con = self.get_parent()
+
+        if parent_con:
+            if parent_con in self.rubiks_parent.candidates:
+                return True
+
+        return False
+
     def parent_is_square(self):
         parent_con = self.get_parent()
 
@@ -568,6 +577,22 @@ class RubiksOpenCV(object):
         log.debug("remove-non-square-candidates %d removed, %d remain" % (removed, len(self.candidates)))
         return candidates_to_remove
 
+    def remove_gigantic_candidates(self):
+        candidates_to_remove = []
+        area_cutoff = int(self.img_area/4)
+
+        # Remove parents with square child contours
+        for con in self.candidates:
+            if con.area > area_cutoff:
+                candidates_to_remove.append(con)
+
+        for x in candidates_to_remove:
+            self.candidates.remove(x)
+
+        removed = len(candidates_to_remove)
+        log.debug("remove-gigantic-candidates %d removed, %d remain" % (removed, len(self.candidates)))
+        return candidates_to_remove
+
     def remove_square_within_square_candidates(self):
         candidates_to_remove = []
 
@@ -581,7 +606,10 @@ class RubiksOpenCV(object):
             if con in candidates_to_remove:
                 continue
 
-            if con.parent_is_square():
+            # The parent must be a square but cannot be a gigantic square (ie
+            # the entire edge of the picture had a contour). Gigantic squares
+            # have been removed from the candidates by the time we get here.
+            if con.parent_is_candidate() and con.parent_is_square():
                 parent = con.get_parent()
 
                 if parent not in candidates_to_remove:
@@ -777,6 +805,8 @@ class RubiksOpenCV(object):
 
     def analyze(self, webcam):
         assert self.image is not None, "self.image is None"
+        (self.img_height, self.img_width) = self.image.shape[:2]
+        self.img_area = int(self.img_height * self.img_width)
 
         # convert to grayscale
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -792,7 +822,7 @@ class RubiksOpenCV(object):
 
         # canny to find the edges
         canny = cv2.Canny(blurred, 20, 40)
-        # self.display_candidates(canny, None, "20 canny")
+        self.display_candidates(canny, None, "20 canny")
 
         # dilate the image to make the edge lines thicker
         kernel = np.ones((3,3), np.uint8)
@@ -823,11 +853,14 @@ class RubiksOpenCV(object):
         self.non_square_contours = self.remove_non_square_candidates()
         self.display_candidates(self.image, "50 post non-squares removal #1")
 
+        if self.remove_gigantic_candidates():
+            self.display_candidates(self.image, "60 remove gigantic squares")
+
         # Sometimes we find a square within a square due to the black space
         # between the cube squares.  Throw away the outside square (it contains
         # the black edge) and keep the inside square.
         if self.remove_square_within_square_candidates():
-            self.display_candidates(self.image, "60 post square-within-square removal #1")
+            self.display_candidates(self.image, "70 post square-within-square removal #1")
 
         # Find the median square size, we need that in order to find the
         # squares that make up the boundry of the cube
@@ -839,21 +872,24 @@ class RubiksOpenCV(object):
 
         # remove all contours that are outside the boundry of the cube
         self.remove_contours_outside_cube(self.candidates)
-        self.display_candidates(self.image, "70 post outside cube removal")
+        self.display_candidates(self.image, "80 post outside cube removal")
 
         # Find the cube size (3x3x3, 4x4x4, etc)
         self.get_cube_size()
 
         if self.size <= 1:
             # There isn't a cube in the image
-            return
+            if webcam:
+                return
+            else:
+                raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
 
         missing = []
 
         if not self.sanity_check_results(self.candidates):
             # remove any squares within the cube that are so small they are obviously not cube squares
             if self.remove_small_square_candidates():
-                self.display_candidates(self.image, "80 post small square removal")
+                self.display_candidates(self.image, "90 post small square removal")
 
             if not self.sanity_check_results(self.candidates):
                 missing = self.find_missing_squares()
@@ -865,7 +901,7 @@ class RubiksOpenCV(object):
                         raise Exception("Could not find missing squares needed to create a valid cube")
                 self.candidates.extend(missing)
 
-        self.display_candidates(self.image, "90 Final", missing)
+        self.display_candidates(self.image, "100 Final", missing)
 
         raw_data = []
         for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):

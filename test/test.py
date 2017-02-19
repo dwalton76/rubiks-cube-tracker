@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 
 from pprint import pformat
 import json
@@ -90,11 +90,11 @@ for (desc, filename) in test_cases:
     log.info("test_dir: %s" % test_dir)
 
     try:
-        output = subprocess.check_output(['rubiks-square-extractor.py',
+        output = subprocess.check_output(['rubiks-cube-tracker.py',
                                           '--directory',
                                           test_dir]).decode('ascii').splitlines()[0].strip()
     except subprocess.CalledProcessError:
-        print("ERROR: rubiks-square-extractor.py barfed on %s" % filename)
+        print("ERROR: rubiks-cube-locator.py barfed on %s" % filename)
         sys.exit(1)
 
     with open(filename, 'r') as fh:
