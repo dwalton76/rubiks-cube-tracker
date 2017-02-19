@@ -677,6 +677,12 @@ class RubiksOpenCV(object):
 
         for con in self.candidates:
             if con.is_square(self.median_square_area):
+                (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
+                    self.get_contour_neighbors(self.candidates, con)
+
+                # Ignore the rogue square with no neighbors
+                if not row_square_neighbors or not col_square_neighbors:
+                    continue
 
                 if self.top is None or con.cY < self.top:
                     self.top = con.cY
@@ -898,8 +904,8 @@ class RubiksOpenCV(object):
         self.get_cube_boundry()
 
         # remove all contours that are outside the boundry of the cube
-        self.remove_contours_outside_cube(self.candidates)
-        self.display_candidates(self.image, "100 post outside cube removal")
+        if self.remove_contours_outside_cube(self.candidates):
+            self.display_candidates(self.image, "100 post outside cube removal")
 
         # Find the cube size (3x3x3, 4x4x4, etc)
         self.get_cube_size()
