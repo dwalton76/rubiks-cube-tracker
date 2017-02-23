@@ -903,6 +903,13 @@ class RubiksOpenCV(object):
 
         self.get_cube_boundry()
 
+        if not self.top:
+            # There isn't a cube in the image
+            if webcam:
+                return
+            else:
+                raise Exception("Could not find the cube boundry")
+
         # remove all contours that are outside the boundry of the cube
         if self.remove_contours_outside_cube(self.candidates):
             self.display_candidates(self.image, "100 post outside cube removal")
