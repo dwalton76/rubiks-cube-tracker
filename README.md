@@ -14,7 +14,7 @@ doesn't work very well for displaying on camera.
 
 ## Install
 ```
-$ sudo apt-get install python-pip python3-pip
+$ sudo apt-get install python-pip python3-pip python-opencv
 $ sudo pip install git+https://github.com/dwalton76/rubiks-cube-tracker.git
 $ sudo pip install git+https://github.com/dwalton76/rubiks-color-resolver.git
 $ sudo pip3 install git+https://github.com/dwalton76/rubiks-color-resolver.git
