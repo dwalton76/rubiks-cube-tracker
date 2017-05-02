@@ -1032,10 +1032,10 @@ class RubiksImage(RubiksOpenCV):
         self.reset()
 
         if not os.path.exists(filename):
-            print "ERROR: %s does not exists" % filename
+            print("ERROR: %s does not exists" % filename)
             sys.exit(1)
 
-        log.warning("Analyze %s" % filename)
+        log.info("Analyze %s" % filename)
         self.image = cv2.imread(filename)
         self.analyze(webcam=False)
 
@@ -1233,7 +1233,7 @@ class RubiksVideo(RubiksOpenCV):
                         color_resolver = RubiksColorSolverGeneric(self.size)
                         color_resolver.enter_scan_data(self.total_data)
                         color_resolver.crunch_colors()
-                        print "Final Colors"
+                        print("Final Colors")
                         final_colors = color_resolver.cube_for_json()
                         kociemba_string = final_colors['kociemba']
                         print(kociemba_string)
@@ -1261,7 +1261,7 @@ class RubiksVideo(RubiksOpenCV):
                             self.solution = check_output(cmd).strip()
                             if self.solution == 'Cube is already solved':
                                 self.solution = 'S O L V E D'
-                            print self.solution
+                            print(self.solution)
 
                         elif self.size == 3:
                             if kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB':
@@ -1269,7 +1269,7 @@ class RubiksVideo(RubiksOpenCV):
                             else:
                                 cmd = ['kociemba', kociemba_string]
                                 self.solution = check_output(cmd).strip()
-                                print self.solution
+                                print(self.solution)
 
                         elif self.size == 4:
                             if kociemba_string == 'UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB':
@@ -1277,7 +1277,7 @@ class RubiksVideo(RubiksOpenCV):
                             else:
                                 cmd = 'cd ~/rubiks-cube-solvers/4x4x4/TPR-4x4x4-Solver/ && java -cp .:threephase.jar:twophase.jar solver %s' % kociemba_string
                                 self.solution = check_output(cmd, shell=True).splitlines()[-1].strip()
-                                print self.solution
+                                print(self.solution)
 
                 else:
                     raise Exception("Invalid side %s" % self.name)
