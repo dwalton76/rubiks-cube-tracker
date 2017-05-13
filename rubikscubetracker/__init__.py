@@ -435,6 +435,20 @@ class CustomContour(object):
         return False
 
 
+def adjust_gamma(image, gamma=1.0):
+    """
+    http://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/
+    """
+    # build a lookup table mapping the pixel values [0, 255] to
+    # their adjusted gamma values
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255
+        for i in np.arange(0, 256)]).astype("uint8")
+
+    # apply gamma correction using the lookup table
+    return cv2.LUT(image, table)
+
+
 class RubiksOpenCV(object):
 
     def __init__(self, index=0, name=None, debug=False):
@@ -834,145 +848,163 @@ class RubiksOpenCV(object):
         assert self.image is not None, "self.image is None"
         (self.img_height, self.img_width) = self.image.shape[:2]
         self.img_area = int(self.img_height * self.img_width)
+        self.display_candidates(self.image, "00 original")
 
-        # convert to grayscale
-        gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        # self.display_candidates(gray, None, "00 gray")
+        for gamma in (1.0, 1.5, 2.0):
 
-        # References:
-        #     http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
-        #
-        # blur a little...not sure why but most canny examples I've found
-        # do this prior to running canny
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-        # self.display_candidates(blurred, None, "10 blurred")
+            try:
+                # Brighten the image
+                gammaed = adjust_gamma(self.image, gamma=gamma)
+                self.display_candidates(gammaed, "10 gamma")
 
-        # canny to find the edges
-        canny = cv2.Canny(blurred, 20, 40)
-        self.display_candidates(canny, None, "20 canny")
+                # convert to grayscale
+                gray = cv2.cvtColor(gammaed, cv2.COLOR_BGR2GRAY)
+                # self.display_candidates(gray, "20 gray")
 
-        # dilate the image to make the edge lines thicker
-        kernel = np.ones((3,3), np.uint8)
-        dilated = cv2.dilate(canny, kernel, iterations=2)
-        self.display_candidates(dilated, None, "30 dilated")
+                # References:
+                #     http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+                #
+                # blur a little...not sure why but most canny examples I've found
+                # do this prior to running canny
+                blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+                # self.display_candidates(blurred, "30 blurred")
 
-        # References:
-        #     http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
-        #     http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
-        #
-        # Find the contours and create a CustomContour object for each...store
-        # these in self.candidates
-        (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        self.candidates = []
-        hierarchy = hierarchy[0]
+                # canny to find the edges
+                canny = cv2.Canny(blurred, 20, 40)
+                self.display_candidates(canny, "40 canny")
 
-        index = 0
-        for component in zip(contours, hierarchy):
-            con = CustomContour(self, index, component[0], component[1])
-            self.contours_by_index[index] = con
+                # dilate the image to make the edge lines thicker
+                kernel = np.ones((3,3), np.uint8)
+                dilated = cv2.dilate(canny, kernel, iterations=2)
+                self.display_candidates(dilated, "50 dilated")
 
-            if con.area > 30 and con.cX is not None:
-                self.candidates.append(con)
-            index += 1
+                # References:
+                #     http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
+                #     http://stackoverflow.com/questions/11782147/python-opencv-contour-tree-hierarchy
+                #
+                # Find the contours and create a CustomContour object for each...store
+                # these in self.candidates
+                (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                self.candidates = []
+                hierarchy = hierarchy[0]
 
-        # Throw away the contours that do not look like squares
-        self.display_candidates(self.image, "40 pre non-squares removal #1")
-        self.non_square_contours = self.remove_non_square_candidates()
-        self.display_candidates(self.image, "50 post non-squares removal #1")
+                index = 0
+                for component in zip(contours, hierarchy):
+                    con = CustomContour(self, index, component[0], component[1])
+                    self.contours_by_index[index] = con
 
-        if self.remove_gigantic_candidates(int(self.img_area/4)):
-            self.display_candidates(self.image, "60 remove gigantic squares")
+                    if con.area > 30 and con.cX is not None:
+                        self.candidates.append(con)
+                    index += 1
 
-        # Sometimes we find a square within a square due to the black space
-        # between the cube squares.  Throw away the outside square (it contains
-        # the black edge) and keep the inside square.
-        if self.remove_square_within_square_candidates():
-            self.display_candidates(self.image, "70 post square-within-square removal #1")
+                # Throw away the contours that do not look like squares
+                self.display_candidates(self.image, "60 pre non-squares removal #1")
+                self.non_square_contours = self.remove_non_square_candidates()
+                self.display_candidates(self.image, "70 post non-squares removal #1")
 
-        # Find the median square size, we need that in order to find the
-        # squares that make up the boundry of the cube
-        if not self.get_median_square_area():
-            # If we are here there aren't any squares in the image
-            return
+                if self.remove_gigantic_candidates(int(self.img_area/4)):
+                    self.display_candidates(self.image, "80 remove gigantic squares")
 
-        if self.remove_dwarf_candidates(int(self.median_square_area/2)):
-            self.display_candidates(self.image, "80 remove dwarf squares")
+                # Sometimes we find a square within a square due to the black space
+                # between the cube squares.  Throw away the outside square (it contains
+                # the black edge) and keep the inside square.
+                if self.remove_square_within_square_candidates():
+                    self.display_candidates(self.image, "90 post square-within-square removal #1")
 
-        if self.remove_gigantic_candidates(int(self.median_square_area * 1.2)):
-            self.display_candidates(self.image, "90 remove larger squares")
-
-        self.get_cube_boundry()
-
-        if not self.top:
-            # There isn't a cube in the image
-            if webcam:
-                return
-            else:
-                raise Exception("Could not find the cube boundry")
-
-        # remove all contours that are outside the boundry of the cube
-        if self.remove_contours_outside_cube(self.candidates):
-            self.display_candidates(self.image, "100 post outside cube removal")
-
-        # Find the cube size (3x3x3, 4x4x4, etc)
-        self.get_cube_size()
-
-        if self.size <= 1:
-            # There isn't a cube in the image
-            if webcam:
-                return
-            else:
-                raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
-
-        missing = []
-
-        if not self.sanity_check_results(self.candidates):
-            missing = self.find_missing_squares()
-
-            if not missing:
-                if webcam:
+                # Find the median square size, we need that in order to find the
+                # squares that make up the boundry of the cube
+                if not self.get_median_square_area():
+                    # If we are here there aren't any squares in the image
                     return
-                else:
-                    raise Exception("Could not find missing squares needed to create a valid cube")
-            self.candidates.extend(missing)
 
-        self.display_candidates(self.image, "110 Final", missing)
+                if self.remove_dwarf_candidates(int(self.median_square_area/2)):
+                    self.display_candidates(self.image, "100 remove dwarf squares")
 
-        raw_data = []
-        for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
-            # Use the mean value of the contour
-            mask = np.zeros(gray.shape, np.uint8)
-            cv2.drawContours(mask, [con.contour], 0, 255, -1)
-            (mean_blue, mean_green, mean_red, _)= map(int, cv2.mean(self.image, mask = mask))
-            raw_data.append((mean_red, mean_green, mean_blue))
-        log.debug("squares RGB data\n%s\n" % pformat(raw_data))
+                if self.remove_gigantic_candidates(int(self.median_square_area * 1.2)):
+                    self.display_candidates(self.image, "110 remove larger squares")
 
-        squares_per_side = len(raw_data)
-        size = int(math.sqrt(squares_per_side))
-        init_square_index = (self.index * squares_per_side) + 1
+                self.get_cube_boundry()
 
-        square_indexes = []
-        for row in range(size):
-            square_indexes_for_row = []
-            for col in range(size):
-                square_indexes_for_row.append(init_square_index + (row * size) + col)
-            square_indexes.append(square_indexes_for_row)
+                if not self.top:
+                    # There isn't a cube in the image
+                    if webcam:
+                        return
+                    else:
+                        raise Exception("Could not find the cube boundry")
 
-        log.debug("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
-        square_indexes = compress_2d_array(square_indexes)
-        log.debug("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
+                # remove all contours that are outside the boundry of the cube
+                if self.remove_contours_outside_cube(self.candidates):
+                    self.display_candidates(self.image, "120 post outside cube removal")
 
-        self.data = {}
-        for index in range(squares_per_side):
-            square_index = square_indexes[index]
-            (red, green, blue) = raw_data[index]
-            log.debug("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
+                # Find the cube size (3x3x3, 4x4x4, etc)
+                self.get_cube_size()
 
-            # self.data is a dict where the square number (as an int) will be
-            # the key and a RGB tuple the value
-            self.data[square_index] = (red, green, blue)
+                if self.size <= 1:
+                    # There isn't a cube in the image
+                    if webcam:
+                        return
+                    else:
+                        raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
 
-        log.debug("")
+                missing = []
+
+                if not self.sanity_check_results(self.candidates):
+                    missing = self.find_missing_squares()
+
+                    if not missing:
+                        if webcam:
+                            return
+                        else:
+                            raise Exception("Could not find missing squares needed to create a valid cube")
+                    self.candidates.extend(missing)
+
+                self.display_candidates(self.image, "130 Final", missing)
+
+                raw_data = []
+                for con in self.sort_by_row_col(deepcopy(self.candidates), self.size):
+                    # Use the mean value of the contour
+                    mask = np.zeros(gray.shape, np.uint8)
+                    cv2.drawContours(mask, [con.contour], 0, 255, -1)
+                    (mean_blue, mean_green, mean_red, _)= map(int, cv2.mean(self.image, mask = mask))
+                    raw_data.append((mean_red, mean_green, mean_blue))
+                log.debug("squares RGB data\n%s\n" % pformat(raw_data))
+
+                squares_per_side = len(raw_data)
+                size = int(math.sqrt(squares_per_side))
+                init_square_index = (self.index * squares_per_side) + 1
+
+                square_indexes = []
+                for row in range(size):
+                    square_indexes_for_row = []
+                    for col in range(size):
+                        square_indexes_for_row.append(init_square_index + (row * size) + col)
+                    square_indexes.append(square_indexes_for_row)
+
+                log.debug("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
+                square_indexes = compress_2d_array(square_indexes)
+                log.debug("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
+
+                self.data = {}
+                for index in range(squares_per_side):
+                    square_index = square_indexes[index]
+                    (red, green, blue) = raw_data[index]
+                    log.debug("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
+
+                    # self.data is a dict where the square number (as an int) will be
+                    # the key and a RGB tuple the value
+                    self.data[square_index] = (red, green, blue)
+
+                log.debug("")
+
+                # If we made it to here it means we were able to extract the cube from
+                # the image with the current gamma setting so no need to look any further
+                return
+
+            except Exception as e:
+                pass
+
+        # We were not able to extract the cube...raise the last exception
+        raise Exception("Unable to extract image")
 
 
 class RubiksImage(RubiksOpenCV):
