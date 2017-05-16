@@ -40,6 +40,7 @@ else:
     if not os.path.isdir(args.directory):
         print "ERROR: directory %s does not exist" % args.directory
         sys.exit(1)
+    prev_side_square_count = None
 
     for (side_index, side_name) in enumerate(('U', 'L', 'F', 'R', 'B', 'D')):
         filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
@@ -47,7 +48,14 @@ else:
         if os.path.exists(filename):
             rimg = RubiksImage(side_index, side_name)
             rimg.analyze_file(filename)
+            side_square_count = len(rimg.data.keys())
             data = merge_two_dicts(data, rimg.data)
+
+            if prev_side_square_count is not None:
+                if side_square_count != prev_side_square_count:
+                    print "ERROR: side_square_count %d != prev_side_square_count %d" % (side_square_count, prev_side_square_count)
+                    sys.exit(1)
+            prev_side_square_count = side_square_count
         else:
             print "ERROR: %s does not exist" % filename
             sys.exit(1)
