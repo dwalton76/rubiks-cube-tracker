@@ -21,6 +21,7 @@ logging.addLevelName(logging.WARNING, "\033[91m %s\033[0m" % logging.getLevelNam
 parser = argparse.ArgumentParser("Rubiks Square Extractor")
 parser.add_argument('-d', '--directory', type=str, help='Directory of images to examine')
 parser.add_argument('-f', '--filename', type=str, help='Image to examine')
+parser.add_argument('--debug', action='store_true', help='Enable debugs')
 parser.add_argument('-w', '--webcam', type=int, help='webcam to use...0, 1, etc')
 args = parser.parse_args()
 
@@ -30,7 +31,7 @@ if args.webcam is not None:
 
 elif args.filename:
     log.setLevel(logging.DEBUG)
-    rimg = RubiksImage(debug=True)
+    rimg = RubiksImage(debug=args.debug)
     rimg.analyze_file(args.filename)
     print(json.dumps(rimg.data, sort_keys=True))
 

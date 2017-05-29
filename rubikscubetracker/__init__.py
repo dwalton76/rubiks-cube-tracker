@@ -869,6 +869,14 @@ class RubiksOpenCV(object):
                 blurred = cv2.GaussianBlur(gray, (3, 3), 0)
                 # self.display_candidates(blurred, "30 blurred")
 
+                # dwalton
+                # Need something here that will take a red square and "fill in" all of
+                # the pixels within that red square with a single RGB value...this should
+                # remove the false positives of edges inside the squares.
+                #
+                # Basically we need to reduce the picture to 7 colors, the six cube colors and the black edges between the squares.
+                # Google "python opencv reduce colors"
+
                 # canny to find the edges
                 canny = cv2.Canny(blurred, 20, 40)
                 self.display_candidates(canny, "40 canny")
@@ -941,6 +949,11 @@ class RubiksOpenCV(object):
 
                 if self.size <= 1:
                     # There isn't a cube in the image
+                    if webcam:
+                        return
+                    else:
+                        raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
+                elif self.size not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
                     if webcam:
                         return
                     else:
