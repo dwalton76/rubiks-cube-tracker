@@ -25,6 +25,9 @@ parser.add_argument('--debug', action='store_true', help='Enable debugs')
 parser.add_argument('-w', '--webcam', type=int, help='webcam to use...0, 1, etc')
 args = parser.parse_args()
 
+if args.debug:
+    log.setLevel(logging.DEBUG)
+
 if args.webcam is not None:
     rvid = RubiksVideo(args.webcam)
     rvid.analyze_webcam()

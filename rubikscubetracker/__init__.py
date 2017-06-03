@@ -187,12 +187,14 @@ def sort_corners(corner1, corner2, corner3, corner4):
     return results
 
 
-def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20):
+def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, ROTATE_THRESHOLD=30):
     """
     Rules
     - there must be four corners
     - all four lines must be roughly the same length
     - all four corners must be roughly 90 degrees
+    - AB and CD must be horizontal lines
+    - AC and BC must be vertical lines
 
     SIDE_VS_SIDE_THRESHOLD
         If this is 1 then all 4 sides must be the exact same length.  If it is
@@ -202,6 +204,9 @@ def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20):
     ANGLE_THRESHOLD
         If this is 0 then all 4 corners must be exactly 90 degrees.  If it
         is 10 then all four corners must be between 80 and 100 degrees.
+
+    ROTATE_THRESHOLD
+        Controls how many degrees the entire square can be rotated
 
     The corners are labeled
 
@@ -264,6 +269,29 @@ def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20):
     angle_D = int(math.degrees(get_angle(C, B, D)))
     if angle_D < min_angle or angle_D > max_angle:
         return False
+
+    far_left  = min(A[0], B[0], C[0], D[0])
+    far_right = max(A[0], B[0], C[0], D[0])
+    far_up    = min(A[1], B[1], C[1], D[1])
+    far_down  = max(A[1], B[1], C[1], D[1])
+    top_left = (far_left, far_up)
+    top_right = (far_right, far_up)
+    bottom_left = (far_left, far_down)
+    bottom_right = (far_right, far_down)
+
+    # Is AB horizontal?
+    if B[1] < A[1]:
+        # Angle at B relative to the AB line
+        angle_B = int(math.degrees(get_angle(A, top_left, B)))
+
+        if angle_B > ROTATE_THRESHOLD:
+            return False
+    else:
+        # Angle at A relative to the AB line
+        angle_A = int(math.degrees(get_angle(B, top_right, A)))
+
+        if angle_A > ROTATE_THRESHOLD:
+            return False
 
     return True
 
@@ -741,6 +769,7 @@ class RubiksOpenCV(object):
         if data[median_index] > 1:
             self.size = data[median_index]
             log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
+            log.info("cube size %dx%dx%d" % (self.size, self.size, self.size))
 
     def remove_contours_outside_cube(self, contours):
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
@@ -850,6 +879,7 @@ class RubiksOpenCV(object):
         self.img_area = int(self.img_height * self.img_width)
         self.display_candidates(self.image, "00 original")
 
+        #for gamma in (1.5, ):
         for gamma in (1.0, 1.5, 2.0):
 
             try:
@@ -878,7 +908,7 @@ class RubiksOpenCV(object):
                 # Google "python opencv reduce colors"
 
                 # canny to find the edges
-                canny = cv2.Canny(blurred, 20, 40)
+                canny = cv2.Canny(blurred, 10, 40)
                 self.display_candidates(canny, "40 canny")
 
                 # dilate the image to make the edge lines thicker
