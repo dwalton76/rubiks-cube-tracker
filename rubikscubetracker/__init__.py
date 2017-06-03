@@ -521,8 +521,8 @@ class RubiksOpenCV(object):
         width_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
         height_wiggle = int(self.median_square_width * WIGGLE_THRESHOLD)
 
-        #log.debug("get_contour_neighbors() for %s, median square width %s, width_wiggle %s, height_wiggle %s" %
-        #    (target_con, self.median_square_width, width_wiggle, height_wiggle))
+        log.debug("get_contour_neighbors() for %s, median square width %s, width_wiggle %s, height_wiggle %s" %
+            (target_con, self.median_square_width, width_wiggle, height_wiggle))
 
         for con in contours:
 
@@ -542,7 +542,7 @@ class RubiksOpenCV(object):
                 else:
                     log.debug("%s is a col neighbor but has %d corners" % (con, con.corners))
             else:
-                log.debug("%s delta %s is outside width wiggle room %s" % (con, x_delta, width_wiggle))
+                log.debug("%s x delta %s is outside width wiggle room %s" % (con, x_delta, width_wiggle))
 
             if y_delta <= height_wiggle:
                 row_neighbors += 1
@@ -553,7 +553,7 @@ class RubiksOpenCV(object):
                 else:
                     log.debug("%s is a row neighbor but has %d corners" % (con, con.corners))
             else:
-                log.debug("%s delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
+                log.debug("%s y delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
 
         #log.debug("get_contour_neighbors() for %s has row %d, row_square %d, col %d, col_square %d neighbors\n" %
         #    (target_con, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
@@ -722,9 +722,13 @@ class RubiksOpenCV(object):
                 (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
                     self.get_contour_neighbors(self.candidates, con)
 
-                # Ignore the rogue square with no neighbors
-                if not row_square_neighbors or not col_square_neighbors:
+                # Ignore the rogue square with no neighbors. I used to do an "or" here but
+                # that was too strict for 2x2x2 cubes.
+                if not row_square_neighbors and not col_square_neighbors:
                     continue
+
+                log.debug("get_cube_boundry: contour is square, row_neighbors %s, col_neighbors %s" %
+                    (row_square_neighbors, col_square_neighbors))
 
                 if self.top is None or con.cY < self.top:
                     self.top = con.cY
@@ -737,6 +741,8 @@ class RubiksOpenCV(object):
 
                 if self.right is None or con.cX > self.right:
                     self.right = con.cX
+
+        log.debug("get_cube_boundry: top %s, bottom %s, left %s right %s" % (self.top, self.bottom, self.left, self.right))
 
     def get_cube_size(self):
         """
@@ -770,6 +776,8 @@ class RubiksOpenCV(object):
             self.size = data[median_index]
             log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
             log.info("cube size %dx%dx%d" % (self.size, self.size, self.size))
+        else:
+            self.size = None
 
     def remove_contours_outside_cube(self, contours):
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
@@ -850,7 +858,7 @@ class RubiksOpenCV(object):
 
             # Of the non-square contours that we previously removed, ignore the ones that are outside the cube
             self.remove_contours_outside_cube(self.non_square_contours)
-            log.debug("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
+            log.info("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
                       (missing_count, len(self.non_square_contours)))
 
             missing_candidates = []
@@ -879,7 +887,7 @@ class RubiksOpenCV(object):
         self.img_area = int(self.img_height * self.img_width)
         self.display_candidates(self.image, "00 original")
 
-        #for gamma in (1.5, ):
+        #for gamma in (1.0, ):
         for gamma in (1.0, 1.5, 2.0):
 
             try:
@@ -899,8 +907,7 @@ class RubiksOpenCV(object):
                 blurred = cv2.GaussianBlur(gray, (3, 3), 0)
                 # self.display_candidates(blurred, "30 blurred")
 
-                # dwalton
-                # Need something here that will take a red square and "fill in" all of
+                # TODO Need something here that will take a red square and "fill in" all of
                 # the pixels within that red square with a single RGB value...this should
                 # remove the false positives of edges inside the squares.
                 #
@@ -953,7 +960,8 @@ class RubiksOpenCV(object):
                 # squares that make up the boundry of the cube
                 if not self.get_median_square_area():
                     # If we are here there aren't any squares in the image
-                    return
+                    log.warning("No squares in image")
+                    continue
 
                 if self.remove_dwarf_candidates(int(self.median_square_area/2)):
                     self.display_candidates(self.image, "100 remove dwarf squares")
@@ -966,9 +974,10 @@ class RubiksOpenCV(object):
                 if not self.top:
                     # There isn't a cube in the image
                     if webcam:
-                        return
+                        return False
                     else:
-                        raise Exception("Could not find the cube boundry")
+                        log.warning("Could not find the cube boundry")
+                        continue
 
                 # remove all contours that are outside the boundry of the cube
                 if self.remove_contours_outside_cube(self.candidates):
@@ -980,14 +989,17 @@ class RubiksOpenCV(object):
                 if self.size <= 1:
                     # There isn't a cube in the image
                     if webcam:
-                        return
+                        return False
                     else:
-                        raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
+                        log.warning("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
+                        continue
+
                 elif self.size not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
                     if webcam:
-                        return
+                        return False
                     else:
-                        raise Exception("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
+                        log.warning("Invalid cube size %sx%sx%s" % (self.size, self.size, self.size))
+                        continue
 
                 missing = []
 
@@ -996,9 +1008,10 @@ class RubiksOpenCV(object):
 
                     if not missing:
                         if webcam:
-                            return
+                            return False
                         else:
-                            raise Exception("Could not find missing squares needed to create a valid cube")
+                            log.warning("Could not find missing squares needed to create a valid cube")
+                            continue
                     self.candidates.extend(missing)
 
                 self.display_candidates(self.image, "130 Final", missing)
@@ -1041,10 +1054,10 @@ class RubiksOpenCV(object):
 
                 # If we made it to here it means we were able to extract the cube from
                 # the image with the current gamma setting so no need to look any further
-                return
+                return True
 
             except Exception as e:
-                pass
+                log.exception(e)
 
         # We were not able to extract the cube...raise the last exception
         raise Exception("Unable to extract image")
