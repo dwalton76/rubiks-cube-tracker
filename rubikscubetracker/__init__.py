@@ -18,7 +18,6 @@ For each png
 
 """
 
-from rubikscolorresolver import RubiksColorSolverGeneric
 from copy import deepcopy
 from itertools import combinations
 from pprint import pformat
@@ -775,7 +774,6 @@ class RubiksOpenCV(object):
         if data[median_index] > 1:
             self.size = data[median_index]
             log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
-            log.info("cube size %dx%dx%d" % (self.size, self.size, self.size))
         else:
             self.size = None
 
@@ -858,7 +856,7 @@ class RubiksOpenCV(object):
 
             # Of the non-square contours that we previously removed, ignore the ones that are outside the cube
             self.remove_contours_outside_cube(self.non_square_contours)
-            log.info("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
+            log.debug("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
                       (missing_count, len(self.non_square_contours)))
 
             missing_candidates = []
@@ -887,8 +885,12 @@ class RubiksOpenCV(object):
         self.img_area = int(self.img_height * self.img_width)
         self.display_candidates(self.image, "00 original")
 
-        #for gamma in (1.0, ):
-        for gamma in (1.0, 1.5, 2.0):
+        if webcam:
+            gammas_to_try = (1.0, )
+        else:
+            gammas_to_try = (1.0, 1.5, 2.0)
+
+        for gamma in gammas_to_try:
 
             try:
                 # Brighten the image
@@ -960,7 +962,8 @@ class RubiksOpenCV(object):
                 # squares that make up the boundry of the cube
                 if not self.get_median_square_area():
                     # If we are here there aren't any squares in the image
-                    log.warning("No squares in image")
+                    if not webcam:
+                        log.warning("No squares in image")
                     continue
 
                 if self.remove_dwarf_candidates(int(self.median_square_area/2)):
@@ -1060,7 +1063,10 @@ class RubiksOpenCV(object):
                 log.exception(e)
 
         # We were not able to extract the cube...raise the last exception
-        raise Exception("Unable to extract image")
+        if webcam:
+            return False
+        else:
+            raise Exception("Unable to extract image")
 
 
 class RubiksImage(RubiksOpenCV):
@@ -1318,6 +1324,7 @@ class RubiksVideo(RubiksOpenCV):
                     print(json.dumps(self.total_data, sort_keys=True) + '\n')
 
                     if self.size in (2, 3, 4):
+                        from rubikscolorresolver import RubiksColorSolverGeneric
                         color_resolver = RubiksColorSolverGeneric(self.size)
                         color_resolver.enter_scan_data(self.total_data)
                         color_resolver.crunch_colors()
