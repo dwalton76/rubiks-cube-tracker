@@ -640,6 +640,7 @@ class RubiksOpenCV(object):
         for con in self.candidates:
             if con.area > area_cutoff:
                 candidates_to_remove.append(con)
+                log.debug("%s area %d is greater than cutoff %d" % (con, con.area, area_cutoff))
 
         for x in candidates_to_remove:
             self.candidates.remove(x)
@@ -836,14 +837,16 @@ class RubiksOpenCV(object):
 
             if row_neighbors != req_neighbors:
                 if debug:
-                    log.info("sanity False: row_neighbors %d != req_neighbors %s" % (row_neighbors, req_neighbors))
+                    log.info("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
                 return False
 
             if col_neighbors != req_neighbors:
                 if debug:
-                    log.info("sanity False: col_neighbors %d != req_neighbors %s" % (col_neighbors, req_neighbors))
+                    log.info("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
                 return False
 
+        if debug:
+            log.info("%s sanity True" % con)
         return True
 
     def find_missing_squares(self):
@@ -873,6 +876,7 @@ class RubiksOpenCV(object):
                     missing_candidates.append((combo_area, combo))
 
             missing_candidates = list(reversed(sorted(missing_candidates)))
+            # log.info("missing_candidates:\n%s" % pformat(missing_candidates))
 
             if missing_candidates:
                 missing = missing_candidates[0][1]
@@ -969,7 +973,7 @@ class RubiksOpenCV(object):
                 if self.remove_dwarf_candidates(int(self.median_square_area/2)):
                     self.display_candidates(self.image, "100 remove dwarf squares")
 
-                if self.remove_gigantic_candidates(int(self.median_square_area * 1.2)):
+                if self.remove_gigantic_candidates(int(self.median_square_area * 1.25)):
                     self.display_candidates(self.image, "110 remove larger squares")
 
                 self.get_cube_boundry()
