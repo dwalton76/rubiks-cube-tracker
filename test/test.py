@@ -109,6 +109,6 @@ if __name__ == '__main__':
             results.append("\033[91mFAIL\033[0m: %s" % desc)
             results.append(get_rgb_delta(expected_output, output))
             results.append(output)
-            break
+            # break
 
     print('\n'.join(results))

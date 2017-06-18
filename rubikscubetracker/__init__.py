@@ -419,7 +419,7 @@ class CustomContour(object):
             # If there is a dent in a square sometimes you will get a really small
             # contour inside the square...we want to ignore those so make sure the
             # area of the inner square is close to the area of the outer square.
-            if int(child_con.area * 2) < self.area:
+            if int(child_con.area * 3) < self.area:
                 return False
 
             if child_con.is_square():
@@ -921,7 +921,7 @@ class RubiksOpenCV(object):
                 # Google "python opencv reduce colors"
 
                 # canny to find the edges
-                canny = cv2.Canny(blurred, 10, 40)
+                canny = cv2.Canny(blurred, 10, 30)
                 self.display_candidates(canny, "40 canny")
 
                 # dilate the image to make the edge lines thicker
