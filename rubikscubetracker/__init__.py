@@ -730,7 +730,7 @@ class RubiksOpenCV(object):
                     (con, row_square_neighbors, col_square_neighbors))
 
                 if strict:
-                    if self.size == 6:
+                    if self.size >= 6:
                         if row_square_neighbors < 4 or col_square_neighbors < 4:
                             continue
 
@@ -787,6 +787,7 @@ class RubiksOpenCV(object):
 
         if data[median_index] > 1:
             self.size = data[median_index]
+            log.info("cube size is %d, %d squares" % (self.size, len(data)))
             log.debug("cube size is %d, %d squares, data %s" % (self.size, len(data), ','.join(map(str, data))))
         else:
             self.size = None
@@ -882,7 +883,12 @@ class RubiksOpenCV(object):
             original_candidates = self.candidates[:]
             self.candidates = self.non_square_contours
             self.remove_gigantic_candidates(int(self.img_area/4))
-            self.remove_dwarf_candidates(int(self.median_square_area/2))
+
+            if self.size >= 7:
+                self.remove_dwarf_candidates(int(self.median_square_area/3))
+            else:
+                self.remove_dwarf_candidates(int(self.median_square_area/2))
+
             self.non_square_contours = self.candidates[:]
             self.candidates = original_candidates
             log.debug("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
@@ -902,7 +908,7 @@ class RubiksOpenCV(object):
                     missing_candidates.append((combo_area, combo))
 
             missing_candidates = list(reversed(sorted(missing_candidates)))
-            # log.info("missing_candidates:\n%s" % pformat(missing_candidates))
+            log.debug("missing_candidates:\n%s" % pformat(missing_candidates))
 
             if missing_candidates:
                 missing = missing_candidates[0][1]
@@ -921,9 +927,6 @@ class RubiksOpenCV(object):
         else:
             gammas_to_try = (1.0, 1.5, 2.0)
             canny_to_try = ((10, 30), (5, 25))
-
-        #gammas_to_try = (1.0, )
-        #canny_to_try = ((5, 25), )
 
         for gamma_setting in gammas_to_try:
             for canny_setting in canny_to_try:
