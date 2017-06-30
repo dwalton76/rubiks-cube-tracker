@@ -637,7 +637,7 @@ class RubiksOpenCV(object):
         log.debug("remove-dwarf-candidates %d removed, %d remain" % (removed, len(self.candidates)))
         return candidates_to_remove
 
-    def remove_gigantic_candidates(self, area_cutoff):
+    def remove_gigantic_candidates(self, area_cutoff, add_dels_to_non_square_candidates=False):
         candidates_to_remove = []
 
         # Remove parents with square child contours
@@ -648,6 +648,9 @@ class RubiksOpenCV(object):
 
         for x in candidates_to_remove:
             self.candidates.remove(x)
+
+            if add_dels_to_non_square_candidates:
+                self.non_square_contours.append(x)
 
         removed = len(candidates_to_remove)
         log.debug("remove-gigantic-candidates %d removed, %d remain" % (removed, len(self.candidates)))
@@ -882,7 +885,10 @@ class RubiksOpenCV(object):
             # clean this up later.
             original_candidates = self.candidates[:]
             self.candidates = self.non_square_contours
+
+            #self.display_candidates(self.image, "997 non_square_can")
             self.remove_gigantic_candidates(int(self.img_area/4))
+            #self.display_candidates(self.image, "998 non_square_can")
 
             if self.size >= 7:
                 self.remove_dwarf_candidates(int(self.median_square_area/3))
@@ -890,6 +896,7 @@ class RubiksOpenCV(object):
                 self.remove_dwarf_candidates(int(self.median_square_area/2))
 
             self.non_square_contours = self.candidates[:]
+            #self.display_candidates(self.image, "999 non_square_can")
             self.candidates = original_candidates
             log.debug("find_missing_squares() %d squares are missing, there are %d non-square contours inside the cube" %
                       (missing_count, len(self.non_square_contours)))
@@ -927,6 +934,10 @@ class RubiksOpenCV(object):
         else:
             gammas_to_try = (1.0, 1.5, 2.0)
             canny_to_try = ((10, 30), (5, 25))
+
+        # dwalton
+        #gammas_to_try = (1.0,)
+        #canny_to_try = ((10, 30), )
 
         for gamma_setting in gammas_to_try:
             for canny_setting in canny_to_try:
@@ -1009,7 +1020,7 @@ class RubiksOpenCV(object):
                     if self.remove_dwarf_candidates(int(self.median_square_area/2)):
                         self.display_candidates(self.image, "100 remove dwarf squares")
 
-                    if self.remove_gigantic_candidates(int(self.median_square_area * 2)):
+                    if self.remove_gigantic_candidates(int(self.median_square_area * 2), True):
                         self.display_candidates(self.image, "110 remove larger squares")
 
                     self.get_cube_boundry(False)
@@ -1112,7 +1123,7 @@ class RubiksOpenCV(object):
         if webcam:
             return False
         else:
-            raise Exception("Unable to extract image")
+            raise Exception("Unable to extract image from %s" % self.name)
 
 
 class RubiksImage(RubiksOpenCV):
