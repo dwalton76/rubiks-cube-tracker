@@ -890,6 +890,8 @@ class RubiksOpenCV(object):
     def get_mean_row_col_for_index(self, col_index, row_index):
         total_X = 0
         total_Y = 0
+        mean_X = 0
+        mean_Y = 0
         candidates_X = 0
         candidates_Y = 0
 
@@ -902,8 +904,11 @@ class RubiksOpenCV(object):
                 total_Y += con.cY
                 candidates_Y += 1
 
-        mean_X = int(total_X/candidates_X)
-        mean_Y = int(total_Y/candidates_Y)
+        if candidates_X:
+            mean_X = int(total_X/candidates_X)
+
+        if candidates_Y:
+            mean_Y = int(total_Y/candidates_Y)
 
         return (mean_X, mean_Y)
 
@@ -1094,12 +1099,12 @@ class RubiksOpenCV(object):
         missing = []
 
         if not self.sanity_check_results(self.candidates):
-            missing = self.find_missing_squares()
+            if webcam:
+                return False
+            else:
+                missing = self.find_missing_squares()
 
-            if not missing:
-                if webcam:
-                    return False
-                else:
+                if not missing:
                     log.info("Could not find missing squares needed to create a valid cube")
                     raise Exception("Unable to extract image from %s" % self.name)
             self.candidates.extend(missing)
