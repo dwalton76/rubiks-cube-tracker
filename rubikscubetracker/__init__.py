@@ -524,7 +524,14 @@ class RubiksOpenCV(object):
         col_square_neighbors = 0
 
         # Wiggle +/- 50% the median_square_width
-        WIGGLE_THRESHOLD = 0.50
+        if self.size is None:
+            WIGGLE_THRESHOLD = 0.50
+
+        elif self.size == 7:
+            WIGGLE_THRESHOLD = 0.50
+
+        else:
+            WIGGLE_THRESHOLD = 0.70
 
         # width_wiggle determines how far left/right we look for other contours
         # height_wiggle determines how far up/down we look for other contours
@@ -745,8 +752,17 @@ class RubiksOpenCV(object):
                         if row_square_neighbors < 2 or col_square_neighbors < 2:
                             continue
 
+                    elif self.size == 2:
+                        if not row_neighbors and not col_neighbors:
+                            continue
                     else:
-                        if not row_square_neighbors and not col_square_neighbors:
+                        if not row_neighbors and not col_neighbors:
+                            continue
+
+                        if not col_neighbors and row_neighbors >= self.size:
+                            continue
+
+                        if not row_neighbors and col_neighbors >= self.size:
                             continue
                 else:
                     # Ignore the rogue square with no neighbors. I used to do an "or" here but
@@ -775,23 +791,15 @@ class RubiksOpenCV(object):
         contours in each row/col in data, then sort data and return the
         median entry
         """
-        data = []
         size_count = {}
 
         for con in self.candidates:
             if con.is_square(self.median_square_area):
                 (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
                     self.get_contour_neighbors(self.candidates, con)
-                #row_size = row_square_neighbors + 1
-                #col_size = col_square_neighbors + 1
                 row_size = row_neighbors + 1
                 col_size = col_neighbors + 1
                 log.info("%s has %d row size, %d col size" % (con, row_size, col_size))
-                #max_size = max(col_size, row_size)
-
-                #if max_size not in size_count:
-                #    size_count[max_size] = 0
-                #size_count[max_size] += 1
 
                 if row_size not in size_count:
                     size_count[row_size] = 0
@@ -800,9 +808,8 @@ class RubiksOpenCV(object):
                 if col_size not in size_count:
                     size_count[col_size] = 0
                 size_count[col_size] += 1
-                #data.append(max(col_size, row_size))
 
-        # dwalton find the size_count entry with the highest value
+        # Find the size count entry with the highest value, that is our cube size
         cube_size = None
         cube_size_count = 0
         for (size, count) in size_count.items():
@@ -812,17 +819,6 @@ class RubiksOpenCV(object):
 
         self.size = cube_size
         log.info("cube size is %d, size_count %s" % (self.size, pformat(size_count)))
-        return
-
-        data = sorted(data)
-        median_index = int((len(data) * 8)/10)
-
-        # dwalton this needs work
-        if data[median_index] > 1:
-            self.size = data[median_index]
-            log.info("cube size is %d, %d squares, median index %d, data %s" % (self.size, len(data), median_index, ','.join(map(str, data))))
-        else:
-            self.size = None
 
     def set_contour_row_col_index(self, con):
 
@@ -888,8 +884,7 @@ class RubiksOpenCV(object):
         needed_squares = self.size * self.size
 
         if num_squares < needed_squares:
-            if debug:
-                log.info("sanity False: num_squares %d < needed_squares %d" % (num_squares, needed_squares))
+            log.info("sanity False: num_squares %d < needed_squares %d" % (num_squares, needed_squares))
             return False
 
         elif num_squares < needed_squares:
@@ -906,17 +901,14 @@ class RubiksOpenCV(object):
                 self.get_contour_neighbors(contours, con)
 
             if row_neighbors != req_neighbors:
-                if debug:
-                    log.info("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
+                log.info("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
                 return False
 
             if col_neighbors != req_neighbors:
-                if debug:
-                    log.info("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
+                log.info("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
                 return False
 
-        if debug:
-            log.info("%s sanity True" % con)
+        log.info("%s sanity True" % con)
         return True
 
     def get_mean_row_col_for_index(self, col_index, row_index):
@@ -1129,6 +1121,9 @@ class RubiksOpenCV(object):
                 raise Exception("Unable to extract image from %s" % self.name)
 
         missing = []
+        # Pause
+        #self.display_candidates(self.image, "140 foo")
+        #cv2.waitKey(0)
 
         if not self.sanity_check_results(self.candidates):
             if webcam:
