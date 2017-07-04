@@ -292,6 +292,8 @@ def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, RO
         if angle_A > ROTATE_THRESHOLD:
             return False
 
+    # TODO - if the area of the approx is way more than the
+    # area of the contour then this is not a square
     return True
 
 
@@ -548,7 +550,7 @@ class RubiksOpenCV(object):
                     col_square_neighbors += 1
                     log.debug("%s is a square col neighbor" % con)
                 else:
-                    log.debug("%s is a col neighbor but has %d corners" % (con, con.corners))
+                    log.debug("%s is a non-square col neighbor, it has %d corners" % (con, con.corners))
             else:
                 log.debug("%s x delta %s is outside width wiggle room %s" % (con, x_delta, width_wiggle))
 
@@ -559,7 +561,7 @@ class RubiksOpenCV(object):
                     row_square_neighbors += 1
                     log.debug("%s is a square row neighbor" % con)
                 else:
-                    log.debug("%s is a row neighbor but has %d corners" % (con, con.corners))
+                    log.debug("%s is a non-square row neighbor, it has %d corners" % (con, con.corners))
             else:
                 log.debug("%s y delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
 
@@ -764,7 +766,7 @@ class RubiksOpenCV(object):
                 if self.right is None or con.cX > self.right:
                     self.right = con.cX
 
-        log.debug("get_cube_boundry: top %s, bottom %s, left %s right %s" % (self.top, self.bottom, self.left, self.right))
+        log.info("get_cube_boundry: size %s, strict %s, top %s, bottom %s, left %s right %s" % (self.size, strict, self.top, self.bottom, self.left, self.right))
 
     def get_cube_size(self):
         """
@@ -774,18 +776,48 @@ class RubiksOpenCV(object):
         median entry
         """
         data = []
+        size_count = {}
 
         for con in self.candidates:
             if con.is_square(self.median_square_area):
                 (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
                     self.get_contour_neighbors(self.candidates, con)
-                row_size = row_square_neighbors + 1
-                col_size = col_square_neighbors + 1
-                data.append(max(col_size, row_size))
+                #row_size = row_square_neighbors + 1
+                #col_size = col_square_neighbors + 1
+                row_size = row_neighbors + 1
+                col_size = col_neighbors + 1
+                log.info("%s has %d row size, %d col size" % (con, row_size, col_size))
+                #max_size = max(col_size, row_size)
+
+                #if max_size not in size_count:
+                #    size_count[max_size] = 0
+                #size_count[max_size] += 1
+
+                if row_size not in size_count:
+                    size_count[row_size] = 0
+                size_count[row_size] += 1
+
+                if col_size not in size_count:
+                    size_count[col_size] = 0
+                size_count[col_size] += 1
+                #data.append(max(col_size, row_size))
+
+        # dwalton find the size_count entry with the highest value
+        cube_size = None
+        cube_size_count = 0
+        for (size, count) in size_count.items():
+            if cube_size is None or count > cube_size_count:
+                cube_size = size
+                cube_size_count = count
+
+        self.size = cube_size
+        log.info("cube size is %d, size_count %s" % (self.size, pformat(size_count)))
+        return
 
         data = sorted(data)
         median_index = int((len(data) * 8)/10)
 
+        # dwalton this needs work
         if data[median_index] > 1:
             self.size = data[median_index]
             log.info("cube size is %d, %d squares, median index %d, data %s" % (self.size, len(data), median_index, ','.join(map(str, data))))
@@ -974,11 +1006,11 @@ class RubiksOpenCV(object):
         self.display_candidates(self.image, "00 original")
 
         # Brighten the image
-        #gammaed = adjust_gamma(self.image, gamma=gamma_setting)
-        #self.display_candidates(gammaed, "10 gamma")
+        gammaed = adjust_gamma(self.image, gamma=1.5)
+        self.display_candidates(gammaed, "10 gamma")
 
         # convert to grayscale
-        gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(gammaed, cv2.COLOR_BGR2GRAY)
         #self.display_candidates(gray, "20 gray")
 
         # References:
