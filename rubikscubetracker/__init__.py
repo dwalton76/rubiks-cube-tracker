@@ -784,7 +784,7 @@ class RubiksOpenCV(object):
                 data.append(max(col_size, row_size))
 
         data = sorted(data)
-        median_index = int((len(data) * 9)/10)
+        median_index = int((len(data) * 8)/10)
 
         if data[median_index] > 1:
             self.size = data[median_index]

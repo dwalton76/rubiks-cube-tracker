@@ -86,6 +86,7 @@ if __name__ == '__main__':
         ('6x6x6 solved 02',    'test-data/6x6x6-solved-02.txt'),
         ('7x7x7 random 01',    'test-data/7x7x7-random-01.txt'),
         ('7x7x7 random 02',    'test-data/7x7x7-random-02.txt'),
+        ('7x7x7 random 03',    'test-data/7x7x7-random-03.txt'),
     )
 
     results = []
