@@ -782,7 +782,8 @@ class RubiksOpenCV(object):
                 if self.right is None or con.cX > self.right:
                     self.right = con.cX
 
-        log.info("get_cube_boundry: size %s, strict %s, top %s, bottom %s, left %s right %s" % (self.size, strict, self.top, self.bottom, self.left, self.right))
+        if self.size:
+            log.info("get_cube_boundry: size %s, strict %s, top %s, bottom %s, left %s right %s" % (self.size, strict, self.top, self.bottom, self.left, self.right))
 
     def get_cube_size(self):
         """
@@ -1100,6 +1101,14 @@ class RubiksOpenCV(object):
 
         # Now that we know the cube size re-define the boundry and remove contours outside the boundry
         self.get_cube_boundry(True)
+
+        if not self.top:
+            # There isn't a cube in the image
+            if webcam:
+                return False
+            else:
+                log.warning("Could not find the cube boundry")
+                raise Exception("Unable to extract image from %s" % self.name)
 
         if self.remove_contours_outside_cube(self.candidates):
             self.display_candidates(self.image, "130 post outside cube removal")
