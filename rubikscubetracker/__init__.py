@@ -45,6 +45,16 @@ def merge_two_dicts(x, y):
     return z
 
 
+def convert_key_strings_to_int(data):
+    result = {}
+    for (key, value) in data.items():
+        if key.isdigit():
+            result[int(key)] = value
+        else:
+            result[key] = value
+    return result
+
+
 def pixel_distance(A, B):
     """
     In 9th grade I sat in geometry class wondering "when then hell am I
@@ -349,7 +359,7 @@ def get_side_name(size, square_index):
     elif square_index <= (squares_per_side * 6):
         return 'D'
     else:
-        raise Exception("We should not be here")
+        raise Exception("We should not be here, square_index %d, size %d, squares_per_side %d" % (square_index, size, squares_per_side))
 
 class CustomContour(object):
 
@@ -615,7 +625,7 @@ class RubiksOpenCV(object):
             for con in contours_to_remove:
                 contours.remove(con)
 
-        assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
+        #assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
     def remove_non_square_candidates(self):
@@ -793,6 +803,7 @@ class RubiksOpenCV(object):
         median entry
         """
         size_count = {}
+        self.size = None
 
         for con in self.candidates:
             if con.is_square(self.median_square_area):
@@ -814,12 +825,16 @@ class RubiksOpenCV(object):
         cube_size = None
         cube_size_count = 0
         for (size, count) in size_count.items():
-            if cube_size is None or count > cube_size_count:
+            if cube_size is None or count > cube_size_count or (count == cube_size_count and size > cube_size):
                 cube_size = size
                 cube_size_count = count
 
-        self.size = cube_size
-        log.info("cube size is %d, size_count %s" % (self.size, pformat(size_count)))
+        if cube_size == 1:
+            self.size = None
+        else:
+            self.size = cube_size
+
+        log.info("cube size is %s, size_count %s" % (self.size, pformat(size_count)))
 
     def set_contour_row_col_index(self, con):
 
@@ -1038,6 +1053,14 @@ class RubiksOpenCV(object):
         # these in self.candidates
         (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         self.candidates = []
+
+        if hierarchy is None:
+            if webcam:
+                return False
+            else:
+                log.warning("No hierarchy")
+                raise Exception("Unable to extract image from %s" % self.name)
+
         hierarchy = hierarchy[0]
 
         index = 0
@@ -1385,6 +1408,7 @@ class RubiksVideo(RubiksOpenCV):
         cv2.resizeWindow("Fig", window_width, window_height)
 
         while True:
+            self.image = None
             (ret, self.image) = capture.read()
 
             # If we've already solve the cube and have instructions printed on the
@@ -1443,12 +1467,15 @@ class RubiksVideo(RubiksOpenCV):
                     print(json.dumps(self.total_data, sort_keys=True) + '\n')
 
                     if self.size in (2, 3, 4):
-                        from rubikscolorresolver import RubiksColorSolverGeneric
-                        color_resolver = RubiksColorSolverGeneric(self.size)
-                        color_resolver.enter_scan_data(self.total_data)
-                        color_resolver.crunch_colors()
-                        print("Final Colors")
-                        final_colors = color_resolver.cube_for_json()
+
+                        with open('/tmp/webcam.json', 'w') as fh:
+                            json.dump(self.total_data, fh, sort_keys=True, indent=4)
+
+                        cmd = ['rubiks-color-resolver.py', '--json', '--filename', '/tmp/webcam.json']
+                        log.info(' '.join(cmd))
+                        final_colors = json.loads(check_output(cmd).decode('ascii').strip())
+                        final_colors['squares'] = convert_key_strings_to_int(final_colors['squares'])
+                        #log.info("final_colors %s" % pformat(final_colors['squares']))
                         kociemba_string = final_colors['kociemba']
                         print(kociemba_string)
 
