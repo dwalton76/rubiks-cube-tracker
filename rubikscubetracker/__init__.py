@@ -499,6 +499,7 @@ class RubiksOpenCV(object):
         self.name = name
         self.debug = debug
         self.image = None
+        self.size_static = None
         self.reset()
 
         # Would be better if we calculated this dynamically
@@ -793,7 +794,7 @@ class RubiksOpenCV(object):
                     self.right = con.cX
 
         if self.size:
-            log.info("get_cube_boundry: size %s, strict %s, top %s, bottom %s, left %s right %s" % (self.size, strict, self.top, self.bottom, self.left, self.right))
+            log.debug("get_cube_boundry: size %s, strict %s, top %s, bottom %s, left %s right %s" % (self.size, strict, self.top, self.bottom, self.left, self.right))
 
     def get_cube_size(self):
         """
@@ -802,6 +803,7 @@ class RubiksOpenCV(object):
         contours in each row/col in data, then sort data and return the
         median entry
         """
+
         size_count = {}
         self.size = None
 
@@ -811,7 +813,7 @@ class RubiksOpenCV(object):
                     self.get_contour_neighbors(self.candidates, con)
                 row_size = row_neighbors + 1
                 col_size = col_neighbors + 1
-                log.info("%s has %d row size, %d col size" % (con, row_size, col_size))
+                log.debug("%s has %d row size, %d col size" % (con, row_size, col_size))
 
                 if row_size not in size_count:
                     size_count[row_size] = 0
@@ -832,9 +834,13 @@ class RubiksOpenCV(object):
         if cube_size == 1:
             self.size = None
         else:
-            self.size = cube_size
 
-        log.info("cube size is %s, size_count %s" % (self.size, pformat(size_count)))
+            # self.size_static is None by default and is only set when running in --webcam mode
+            if self.size_static is None or cube_size == self.size_static:
+                self.size = cube_size
+                return
+
+        log.debug("cube size is %s, size_count %s" % (self.size, pformat(size_count)))
 
     def set_contour_row_col_index(self, con):
 
@@ -900,7 +906,7 @@ class RubiksOpenCV(object):
         needed_squares = self.size * self.size
 
         if num_squares < needed_squares:
-            log.info("sanity False: num_squares %d < needed_squares %d" % (num_squares, needed_squares))
+            log.debug("sanity False: num_squares %d < needed_squares %d" % (num_squares, needed_squares))
             return False
 
         elif num_squares < needed_squares:
@@ -917,14 +923,14 @@ class RubiksOpenCV(object):
                 self.get_contour_neighbors(contours, con)
 
             if row_neighbors != req_neighbors:
-                log.info("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
+                log.debug("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
                 return False
 
             if col_neighbors != req_neighbors:
-                log.info("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
+                log.debug("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
                 return False
 
-        log.info("%s sanity True" % con)
+        log.debug("%s sanity True" % con)
         return True
 
     def get_mean_row_col_for_index(self, col_index, row_index):
@@ -952,11 +958,22 @@ class RubiksOpenCV(object):
 
         return (mean_X, mean_Y)
 
-    def find_missing_squares(self):
+    def find_missing_squares(self, webcam):
+
+        # It is better if we actually locate all the squares, this is doable with
+        # 4x4x4 and smaller but for larger than that there are so many squares it
+        # becomes difficult to find all of them in a single frame.
+        if webcam and self.size <= 4:
+            return []
 
         # How many squares are missing?
         missing_count = (self.size * self.size) - len(self.candidates)
-        assert missing_count > 0, "missing_count is %d, we should not be here" % missing_count
+
+        if missing_count <= 0:
+            if webcam:
+                return []
+            else:
+                assert False, "%dx%dx%d missing_count is %d, we should not be here" % (self.size, self.size, self.size, missing_count)
 
         needed = []
         con_by_row_col_index = {}
@@ -975,7 +992,10 @@ class RubiksOpenCV(object):
                     needed.append((col_index, row_index))
 
         if len(needed) != missing_count:
-            raise Exception("missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed)))
+            if webcam:
+                return []
+            else:
+                raise Exception("missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed)))
 
         #log.info("needed: %s" % pformat(needed))
         # For each of 'needed', create a CustomContour() object at the coordinates
@@ -986,7 +1006,7 @@ class RubiksOpenCV(object):
 
         for (col_index, row_index) in needed:
             (missing_X, missing_Y) = self.get_mean_row_col_for_index(col_index, row_index)
-            log.info("missing contour at index (%d, %d), coordinates(%d, %d)" % (col_index, row_index, missing_X, missing_Y))
+            log.debug("missing contour at index (%d, %d), coordinates(%d, %d)" % (col_index, row_index, missing_X, missing_Y))
 
             missing_size = 5
             missing_left = missing_X - missing_size
@@ -1158,14 +1178,15 @@ class RubiksOpenCV(object):
         #cv2.waitKey(0)
 
         if not self.sanity_check_results(self.candidates):
-            if webcam:
-                return False
-            else:
-                missing = self.find_missing_squares()
+            missing = self.find_missing_squares(webcam)
 
-                if not missing:
+            if not missing:
+                if webcam:
+                    return False
+                else:
                     log.info("Could not find missing squares needed to create a valid cube")
                     raise Exception("Unable to extract image from %s" % self.name)
+
             self.candidates.extend(missing)
 
         self.display_candidates(self.image, "140 Final", missing)
@@ -1273,12 +1294,13 @@ class RubiksImage(RubiksOpenCV):
 
         log.info("Analyze %s" % filename)
         self.image = cv2.imread(filename)
-        self.analyze(webcam=False)
+        return self.analyze(webcam=False)
 
 
 class RubiksVideo(RubiksOpenCV):
 
     def __init__(self, webcam):
+        self.size_static = None
         self.draw_cube_size = 30
 
         # 0 for laptop camera, 1 for usb camera, etc
@@ -1308,6 +1330,7 @@ class RubiksVideo(RubiksOpenCV):
             self.name = 'F'
             self.index = 2
             self.total_data = {}
+            self.size_static = None
 
     def display_candidates(self, image, desc, missing=[]):
         pass
@@ -1388,6 +1411,8 @@ class RubiksVideo(RubiksOpenCV):
                 self.save_colors = True
             elif cc == 'r':
                 self.reset(True)
+            elif cc.isdigit():
+                self.size_static = int(cc)
 
         return True
 
@@ -1414,8 +1439,12 @@ class RubiksVideo(RubiksOpenCV):
             # If we've already solve the cube and have instructions printed on the
             # screen don't bother looking for the cube in the image
             if not self.solution:
-                self.analyze(webcam=True)
-                self.draw_circles()
+
+                if self.analyze(webcam=True):
+                    self.draw_circles()
+                else:
+                    self.draw_circles()
+                    self.reset(False)
 
             self.draw_cube_face(self.draw_cube_size, height - (self.draw_cube_size * 3), self.U_data, 'U')
             self.draw_cube_face(self.draw_cube_size * 0, height - (self.draw_cube_size * 2), self.L_data, 'L')
@@ -1434,6 +1463,9 @@ class RubiksVideo(RubiksOpenCV):
             if self.save_colors and self.size and len(self.data.keys()) == (self.size * self.size):
                 self.total_data = merge_two_dicts(self.total_data, self.data)
                 log.info("Saved side %s, %d squares" % (self.name, len(self.data.keys())))
+
+                if self.size_static is None:
+                    self.size_static = self.size
 
                 if self.name == 'F':
                     self.F_data = deepcopy(self.data)
@@ -1464,61 +1496,65 @@ class RubiksVideo(RubiksOpenCV):
                     self.D_data = deepcopy(self.data)
                     self.name = 'F'
                     self.index = 2
-                    print(json.dumps(self.total_data, sort_keys=True) + '\n')
 
-                    if self.size in (2, 3, 4):
+                    with open('/tmp/webcam.json', 'w') as fh:
+                        json.dump(self.total_data, fh, sort_keys=True, indent=4)
 
-                        with open('/tmp/webcam.json', 'w') as fh:
-                            json.dump(self.total_data, fh, sort_keys=True, indent=4)
+                    cmd = ['rubiks-color-resolver.py', '--json', '--filename', '/tmp/webcam.json']
+                    log.info(' '.join(cmd))
+                    final_colors = json.loads(check_output(cmd).decode('ascii').strip())
+                    final_colors['squares'] = convert_key_strings_to_int(final_colors['squares'])
+                    #log.info("final_colors %s" % pformat(final_colors['squares']))
+                    kociemba_string = final_colors['kociemba']
+                    #print(kociemba_string)
 
-                        cmd = ['rubiks-color-resolver.py', '--json', '--filename', '/tmp/webcam.json']
-                        log.info(' '.join(cmd))
-                        final_colors = json.loads(check_output(cmd).decode('ascii').strip())
-                        final_colors['squares'] = convert_key_strings_to_int(final_colors['squares'])
-                        #log.info("final_colors %s" % pformat(final_colors['squares']))
-                        kociemba_string = final_colors['kociemba']
-                        print(kociemba_string)
+                    colormap = {}
+                    for (side_name, data) in final_colors['sides'].items():
+                        colormap[side_name] = final_colors['sides'][side_name]['colorName']
 
-                        for (square_index, value) in final_colors['squares'].items():
-                            html_colors = final_colors['sides'][value['finalSide']]['colorHTML']
-                            rgb = (html_colors['red'], html_colors['green'], html_colors['blue'])
-                            side_name = get_side_name(self.size, square_index)
+                    for (square_index, value) in final_colors['squares'].items():
+                        html_colors = final_colors['sides'][value['finalSide']]['colorHTML']
+                        rgb = (html_colors['red'], html_colors['green'], html_colors['blue'])
+                        side_name = get_side_name(self.size, square_index)
 
-                            if side_name == 'U':
-                                self.U_html[square_index] = rgb
-                            elif side_name == 'L':
-                                self.L_html[square_index] = rgb
-                            elif side_name == 'F':
-                                self.F_html[square_index] = rgb
-                            elif side_name == 'R':
-                                self.R_html[square_index] = rgb
-                            elif side_name == 'B':
-                                self.B_html[square_index] = rgb
-                            elif side_name == 'D':
-                                self.D_html[square_index] = rgb
+                        if side_name == 'U':
+                            self.U_html[square_index] = rgb
+                        elif side_name == 'L':
+                            self.L_html[square_index] = rgb
+                        elif side_name == 'F':
+                            self.F_html[square_index] = rgb
+                        elif side_name == 'R':
+                            self.R_html[square_index] = rgb
+                        elif side_name == 'B':
+                            self.B_html[square_index] = rgb
+                        elif side_name == 'D':
+                            self.D_html[square_index] = rgb
 
-                        if self.size == 2:
-                            cmd = ['rubiks_2x2x2_solver.py', kociemba_string]
-                            self.solution = check_output(cmd).strip()
-                            if self.solution == 'Cube is already solved':
-                                self.solution = 'S O L V E D'
-                            print(self.solution)
+                    # Already solved
+                    if (self.size == 2 and kociemba_string == 'UUUURRRRFFFFDDDDLLLLBBBB' or
+                        self.size == 3 and kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB' or
+                        self.size == 4 and kociemba_string == 'UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB' or
+                        self.size == 5 and kociemba_string == 'UUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBB' or
+                        self.size == 6 and kociemba_string == 'UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'):
+                        self.solution = 'SOLVED'
 
-                        elif self.size == 3:
-                            if kociemba_string == 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB':
-                                self.solution = 'S O L V E D'
-                            else:
-                                cmd = ['kociemba', kociemba_string]
-                                self.solution = check_output(cmd).strip()
-                                print(self.solution)
+                    # Run the solver
+                    else:
+                        cv2.putText(self.image, "Calculating solution", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                        cv2.putText(self.image, "Video may freeze", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                        cmd = "cd ~/rubiks-cube-NxNxN-solver/; ./usr/bin/rubiks-cube-solver.py --colormap '%s' --state %s" % (json.dumps(colormap), kociemba_string)
+                        log.info(cmd)
+                        output = check_output(cmd, shell=True)
 
-                        elif self.size == 4:
-                            if kociemba_string == 'UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB':
-                                self.solution = 'S O L V E D'
-                            else:
-                                cmd = 'cd ~/rubiks-cube-solvers/4x4x4/TPR-4x4x4-Solver/ && java -cp .:threephase.jar:twophase.jar solver %s' % kociemba_string
-                                self.solution = check_output(cmd, shell=True).splitlines()[-1].strip()
-                                print(self.solution)
+                        for line in output.splitlines():
+                            line = line.strip()
+                            if line.startswith('Solution:'):
+                                self.solution = line[10:]
+                                break
+
+                        if self.size >= 4:
+                            self.solution = "See /tmp/solution.html"
+                    print(self.solution)
 
                 else:
                     raise Exception("Invalid side %s" % self.name)
@@ -1527,17 +1563,26 @@ class RubiksVideo(RubiksOpenCV):
                 self.save_colors = False
 
             if self.solution:
-                slist = self.solution.split()
-                row = 1
 
-                while slist:
-                    to_display = min(10, len(slist))
-                    cv2.putText(self.image, ' '.join(slist[0:to_display]), (10, 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-                    if to_display == len(slist):
-                        break
-                    else:
-                        slist = slist[to_display:]
-                    row += 1
+                if self.solution == 'See /tmp/solution.html' or self.solution == 'SOLVED':
+                    cv2.putText(self.image, self.solution, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                else:
+                    slist = self.solution.split()
+                    row = 1
+
+                    while slist:
+                        to_display = min(10, len(slist))
+                        cv2.putText(self.image, ' '.join(slist[0:to_display]), (10, 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                        if to_display == len(slist):
+                            break
+                        else:
+                            slist = slist[to_display:]
+                        row += 1
+
+            elif self.size_static is not None:
+                cv2.putText(self.image, "%dx%dx%d" % (self.size_static, self.size_static, self.size_static),
+                            (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+
             cv2.imshow("Fig", self.image)
 
             if not self.process_keyboard_input():

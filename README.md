@@ -16,12 +16,15 @@ doesn't work very well for displaying on camera.
 ```
 $ sudo apt-get install python-pip python-opencv
 $ sudo pip install git+https://github.com/dwalton76/rubiks-cube-tracker.git
-$ sudo pip install git+https://github.com/dwalton76/rubiks-color-resolver.git
 ```
 
+### Installing rubiks-color-resolver
+Follow the instructions at https://github.com/dwalton76/rubiks-color-resolver
+to install the rubiks-color-resolver library
+
 ### Installing solvers
-Solvers for various size cubes are available at https://github.com/dwalton76/rubiks-cube-solvers
-Please follow the README instructions there to install the solvers you are interested in.
+Follow the instructions at https://github.com/dwalton76/rubiks-cube-NxNxN-solver
+to install a solver for 2x2x2, 3x3x3, 4x4x4, 5x5x5, 6x6x6, and 7x7x7 cubes
 
 
 ## How To Use
