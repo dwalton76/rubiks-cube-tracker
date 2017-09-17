@@ -81,6 +81,7 @@ if __name__ == '__main__':
         ('4x4x4 random 04',    'test-data/4x4x4-random-04.txt'),
         ('4x4x4 random 05',    'test-data/4x4x4-random-05.txt'),
         ('4x4x4 random 06',    'test-data/4x4x4-random-06.txt'),
+        ('4x4x4 random 07',    'test-data/4x4x4-random-07.txt'),
         ('5x5x5 random 01',    'test-data/5x5x5-random-01.txt'),
         ('6x6x6 random 03',    'test-data/6x6x6-random-03.txt'),
         ('6x6x6 random 04',    'test-data/6x6x6-random-04.txt'),
