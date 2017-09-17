@@ -629,7 +629,7 @@ class RubiksOpenCV(object):
         #assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
-    def remove_non_square_candidates(self):
+    def remove_non_square_candidates(self, median_square_area=None):
         """
         Remove non-square contours from candidates.  Return a list of the ones we removed.
         """
@@ -637,7 +637,7 @@ class RubiksOpenCV(object):
 
         # Remove parents with square child contours
         for con in self.candidates:
-            if not con.is_square():
+            if not con.is_square(median_square_area):
                 candidates_to_remove.append(con)
 
         for x in candidates_to_remove:
@@ -1176,6 +1176,10 @@ class RubiksOpenCV(object):
         # Pause
         #self.display_candidates(self.image, "140 foo")
         #cv2.waitKey(0)
+
+        # Now that we know the median size of each sqaure, go back and
+        # remove non-squares one more time
+        self.remove_non_square_candidates(self.median_square_area)
 
         if not self.sanity_check_results(self.candidates):
             missing = self.find_missing_squares(webcam)
