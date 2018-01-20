@@ -1487,13 +1487,14 @@ class RubiksImage(RubiksOpenCV):
 class RubiksVideo(RubiksOpenCV):
 
     def __init__(self, webcam):
+        RubiksOpenCV.__init__(self)
         self.size_static = None
         self.draw_cube_size = 30
 
         # 0 for laptop camera, 1 for usb camera, etc
         self.webcam = webcam
 
-    def reset(self, everything):
+    def video_reset(self, everything):
         RubiksOpenCV.reset(self)
 
         if everything:
@@ -1597,14 +1598,14 @@ class RubiksVideo(RubiksOpenCV):
             if cc == ' ':
                 self.save_colors = True
             elif cc == 'r':
-                self.reset(True)
+                self.video_reset(True)
             elif cc.isdigit():
                 self.size_static = int(cc)
 
         return True
 
     def analyze_webcam(self, width=352, height=240):
-        self.reset(True)
+        self.video_reset(True)
         window_width = width * 2
         window_height = height * 2
 
@@ -1627,11 +1628,16 @@ class RubiksVideo(RubiksOpenCV):
             # screen don't bother looking for the cube in the image
             if not self.solution:
 
-                if self.analyze(webcam=True):
+                try:
+                    if self.analyze(webcam=True):
+                        self.draw_circles()
+                    else:
+                        self.draw_circles()
+                        self.video_reset(False)
+
+                except CubeNotFound:
                     self.draw_circles()
-                else:
-                    self.draw_circles()
-                    self.reset(False)
+                    self.video_reset(False)
 
             self.draw_cube_face(self.draw_cube_size, height - (self.draw_cube_size * 3), self.U_data, 'U')
             self.draw_cube_face(self.draw_cube_size * 0, height - (self.draw_cube_size * 2), self.L_data, 'L')
@@ -1746,7 +1752,7 @@ class RubiksVideo(RubiksOpenCV):
                 else:
                     raise Exception("Invalid side %s" % self.name)
 
-                self.reset(False)
+                self.video_reset(False)
                 self.save_colors = False
 
             if self.solution:
