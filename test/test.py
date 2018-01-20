@@ -66,30 +66,31 @@ if __name__ == '__main__':
     # - in the log output grab the "RGB json" and save that in a file in test-data
     # - in the log output grab the "Final cube for kociema", this is what you put in the entry in the test_cases tuple
     test_cases = (
-        ('3x3x3 random 01',    'test-data/3x3x3-random-01.txt'),
-        ('3x3x3 random 02',    'test-data/3x3x3-random-02.txt'),
-        ('3x3x3 random 03',    'test-data/3x3x3-random-03.txt'),
-        ('3x3x3 random 04',    'test-data/3x3x3-random-04.txt'),
-        ('3x3x3 random 05',    'test-data/3x3x3-random-05.txt'),
-        ('3x3x3 random 06',    'test-data/3x3x3-random-06.txt'),
-        ('3x3x3 random 07',    'test-data/3x3x3-random-07.txt'),
-        ('3x3x3 random 08',    'test-data/3x3x3-random-08.txt'),
-        ('3x3x3 random 09',    'test-data/3x3x3-random-09.txt'),
-        ('4x4x4 random 01',    'test-data/4x4x4-random-01.txt'),
-        ('4x4x4 random 02',    'test-data/4x4x4-random-02.txt'),
-        ('4x4x4 random 03',    'test-data/4x4x4-random-03.txt'),
-        ('4x4x4 random 04',    'test-data/4x4x4-random-04.txt'),
-        ('4x4x4 random 05',    'test-data/4x4x4-random-05.txt'),
-        ('4x4x4 random 06',    'test-data/4x4x4-random-06.txt'),
-        ('4x4x4 random 07',    'test-data/4x4x4-random-07.txt'),
-        ('5x5x5 random 01',    'test-data/5x5x5-random-01.txt'),
-        ('6x6x6 random 03',    'test-data/6x6x6-random-03.txt'),
-        ('6x6x6 random 04',    'test-data/6x6x6-random-04.txt'),
-        ('6x6x6 solved 01',    'test-data/6x6x6-solved-01.txt'),
-        ('6x6x6 solved 02',    'test-data/6x6x6-solved-02.txt'),
-        ('7x7x7 random 01',    'test-data/7x7x7-random-01.txt'),
-        ('7x7x7 random 02',    'test-data/7x7x7-random-02.txt'),
-        ('7x7x7 random 03',    'test-data/7x7x7-random-03.txt'),
+        ('3x3x3 random 01',    'test/test-data/3x3x3-random-01.txt'),
+        ('3x3x3 random 02',    'test/test-data/3x3x3-random-02.txt'),
+        ('3x3x3 random 03',    'test/test-data/3x3x3-random-03.txt'),
+        ('3x3x3 random 04',    'test/test-data/3x3x3-random-04.txt'),
+        ('3x3x3 random 05',    'test/test-data/3x3x3-random-05.txt'),
+        ('3x3x3 random 06',    'test/test-data/3x3x3-random-06.txt'),
+        ('3x3x3 random 07',    'test/test-data/3x3x3-random-07.txt'),
+        ('3x3x3 random 08',    'test/test-data/3x3x3-random-08.txt'),
+        ('3x3x3 random 09',    'test/test-data/3x3x3-random-09.txt'),
+        ('3x3x3 random 10',    'test/test-data/3x3x3-random-10.txt'),
+        ('4x4x4 random 01',    'test/test-data/4x4x4-random-01.txt'),
+        ('4x4x4 random 02',    'test/test-data/4x4x4-random-02.txt'),
+        ('4x4x4 random 03',    'test/test-data/4x4x4-random-03.txt'),
+        ('4x4x4 random 04',    'test/test-data/4x4x4-random-04.txt'),
+        ('4x4x4 random 05',    'test/test-data/4x4x4-random-05.txt'),
+        ('4x4x4 random 06',    'test/test-data/4x4x4-random-06.txt'),
+        ('4x4x4 random 07',    'test/test-data/4x4x4-random-07.txt'),
+        ('5x5x5 random 01',    'test/test-data/5x5x5-random-01.txt'),
+        ('6x6x6 random 03',    'test/test-data/6x6x6-random-03.txt'),
+        ('6x6x6 random 04',    'test/test-data/6x6x6-random-04.txt'),
+        ('6x6x6 solved 01',    'test/test-data/6x6x6-solved-01.txt'),
+        ('6x6x6 solved 02',    'test/test-data/6x6x6-solved-02.txt'),
+        ('7x7x7 random 01',    'test/test-data/7x7x7-random-01.txt'),
+        ('7x7x7 random 02',    'test/test-data/7x7x7-random-02.txt'),
+        ('7x7x7 random 03',    'test/test-data/7x7x7-random-03.txt'),
     )
 
     results = []
@@ -106,7 +107,8 @@ if __name__ == '__main__':
         except subprocess.CalledProcessError as e:
             print("ERROR: rubiks-cube-locator.py barfed on %s" % filename)
             print(e)
-            sys.exit(1)
+            results.append("\033[91mFAIL\033[0m: %s (Exception)" % desc)
+            continue
 
         with open(filename, 'r') as fh:
             expected_output = fh.readlines()[0].strip()
