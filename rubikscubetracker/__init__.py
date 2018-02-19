@@ -1258,7 +1258,7 @@ class RubiksOpenCV(object):
         #
         # Find the contours and create a CustomContour object for each...store
         # these in self.candidates
-        (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        (_, contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         self.candidates = []
 
         if hierarchy is None:
