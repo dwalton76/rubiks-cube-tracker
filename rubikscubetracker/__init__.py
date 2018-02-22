@@ -1640,6 +1640,7 @@ class RubiksVideo(RubiksOpenCV):
 
                     with open('/tmp/webcam.json', 'w') as fh:
                         json.dump(self.total_data, fh, sort_keys=True, indent=4)
+                    os.chmod('/tmp/webcam.json', 0o777)
 
                     cmd = ['rubiks-color-resolver.py', '--json', '--filename', '/tmp/webcam.json']
                     log.info(' '.join(cmd))
