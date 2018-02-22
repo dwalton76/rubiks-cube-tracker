@@ -1188,8 +1188,11 @@ class RubiksOpenCV(object):
         #self.display_candidates(gray, "09 gray")
 
         # dwalton this is probably too expensive for --webcam mode...test it
-        nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
-        self.display_candidates(nonoise, "10 removed noise")
+        if webcam:
+            nonoise = gray.copy()
+        else:
+            nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
+            self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
         canny = cv2.Canny(nonoise, 10, 30)
@@ -1206,7 +1209,13 @@ class RubiksOpenCV(object):
         #
         # Find the contours and create a CustomContour object for each...store
         # these in self.candidates
-        (_, contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        #
+        # try/except here to handle multiple versions of OpenCV
+        try:
+            (_, contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        except ValueError:
+            (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
         self.candidates = []
 
         if hierarchy is None:
@@ -1560,12 +1569,16 @@ class RubiksVideo(RubiksOpenCV):
         capture = cv2.VideoCapture(self.webcam)
 
         # Set the capture resolution
-        capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
-        capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
-        # capture.set(cv2.cv.CV_CAP_PROP_SATURATION, 0.10)
+        if hasattr(cv2, 'cv'):
+            capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
+            capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
+            cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
+        else:
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            cv2.namedWindow("Fig", cv2.WINDOW_NORMAL)
 
         # Create the window and set the size to match the capture resolution
-        cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
         cv2.resizeWindow("Fig", window_width, window_height)
 
         while True:
@@ -1689,10 +1702,7 @@ class RubiksVideo(RubiksOpenCV):
                         output = check_output(cmd, shell=True)
 
                         for line in output.splitlines():
-                            line = line.strip()
-                            if line.startswith('Solution:'):
-                                self.solution = line[10:]
-                                break
+                            self.solution = line.strip()
 
                         if self.size >= 4:
                             self.solution = "See /tmp/solution.html"
