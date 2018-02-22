@@ -1138,16 +1138,13 @@ class RubiksOpenCV(object):
                     needed.append((col_index, row_index))
 
         if self.debug:
-            log.info("find_missing_squares: needed %s" % pformat(needed))
+            log.info("find_missing_squares: missing_count %d, needed %s" % (missing_count, pformat(needed)))
 
         if len(needed) != missing_count:
             if webcam:
                 return []
             else:
                 raise Exception("missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed)))
-
-        if self.debug:
-            log.info("find_missing_squares: needed %s" % pformat(needed))
 
         # For each of 'needed', create a CustomContour() object at the coordinates
         # where we need a contour. This will be a very small square contour but that
@@ -1159,7 +1156,7 @@ class RubiksOpenCV(object):
             (missing_X, missing_Y) = self.get_mean_row_col_for_index(col_index, row_index)
 
             if self.debug:
-                log.info("find_missing_squares: missing contour at index (%d, %d), coordinates(%d, %d)" % (col_index, row_index, missing_X, missing_Y))
+                log.info("find_missing_squares: contour (%d, %d), coordinates(%d, %d)\n" % (col_index, row_index, missing_X, missing_Y))
 
             missing_size = 5
             missing_left = missing_X - missing_size
@@ -1186,71 +1183,22 @@ class RubiksOpenCV(object):
         self.img_area = int(self.img_height * self.img_width)
         self.display_candidates(self.image, "00 original (%s x %x)" % (self.img_height, self.img_width))
 
-        # brighten the image
-        gammaed = adjust_gamma(self.image, gamma=gamma_value)
-        self.display_candidates(gammaed, "10 gamma")
+        # Removing noise helps a TON with edge detection
+        gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        #self.display_candidates(gray, "09 gray")
 
-        use_kmeans = False
-
-        # This is something I experimented with...it 100% falls apart on
-        # ./test/test-data/6x6x6-solved-01/rubiks-side-U.png though, that
-        # is the white side of a solved 6x6x6
-        if use_kmeans:
-
-            # Use kmeans to reduce the number of colors
-            # http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_ml/py_kmeans/py_kmeans_opencv/py_kmeans_opencv.html
-            Z = gammaed.reshape((-1, 3))
-
-            # convert to np.float32
-            Z = np.float32(Z)
-
-            # define criteria, number of clusters(K) and apply kmeans()
-            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-            K = 10
-            #(ret, label, center) = cv2.kmeans(Z, K, criteria, 10, int(cv2.KMEANS_RANDOM_CENTERS))
-            (ret, label, center) = cv2.kmeans(Z, K, criteria, 10, int(cv2.KMEANS_PP_CENTERS))
-
-            # Now convert back into uint8, and make original image
-            center = np.uint8(center)
-            res = center[label.flatten()]
-            res2 = res.reshape((gammaed.shape))
-
-            Z = None
-            criteria = None
-            center = None
-            res = None
-            ret = None
-            label = None
-
-            self.display_candidates(res2, "15 reduced colors")
-
-            # convert to grayscale
-            gray = cv2.cvtColor(res2, cv2.COLOR_BGR2GRAY)
-            #self.display_candidates(gray, "20 gray")
-
-        else:
-            # convert to grayscale
-            gray = cv2.cvtColor(gammaed, cv2.COLOR_BGR2GRAY)
-            #self.display_candidates(gray, "20 gray")
-
-
-        # References:
-        #     http://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
-        #
-        # blur a little...not sure why but most canny examples I've found
-        # do this prior to running canny
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-        # self.display_candidates(blurred, "30 blurred")
-
+        # dwalton this is probably too expensive for --webcam mode...test it
+        nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
+        self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        canny = cv2.Canny(blurred, 10, 30)
-        self.display_candidates(canny, "40 canny")
+        canny = cv2.Canny(nonoise, 10, 30)
+        self.display_candidates(canny, "20 canny")
 
         # dilate the image to make the edge lines thicker
         kernel = np.ones((3, 3), np.uint8)
         dilated = cv2.dilate(canny, kernel, iterations=2)
-        self.display_candidates(dilated, "50 dilated")
+        self.display_candidates(dilated, "30 dilated")
 
         # References:
         #     http://docs.opencv.org/trunk/d9/d8b/tutorial_py_contours_hierarchy.html
@@ -1281,22 +1229,22 @@ class RubiksOpenCV(object):
 
 
         # Throw away the contours that do not look like squares
-        self.display_candidates(self.image, "60 pre non-squares removal #1")
+        self.display_candidates(self.image, "40 pre non-squares removal #1")
 
         if self.remove_non_square_candidates():
-            self.display_candidates(self.image, "70 post non-squares removal #1")
+            self.display_candidates(self.image, "50 post non-squares removal #1")
 
 
         # If a contour is more than 25% of the entire image throw it away
         if self.remove_gigantic_candidates(int(self.img_area/4)):
-            self.display_candidates(self.image, "80 remove gigantic squares")
+            self.display_candidates(self.image, "60 remove gigantic squares")
 
 
         # Sometimes we find a square within a square due to the black space
         # between the cube squares.  Throw away the outside square (it contains
         # the black edge) and keep the inside square.
         if self.remove_square_within_square_candidates():
-            self.display_candidates(self.image, "90 post square-within-square removal #1")
+            self.display_candidates(self.image, "70 post square-within-square removal #1")
 
 
         # Find the median square size, we need that in order to find the
@@ -1307,14 +1255,14 @@ class RubiksOpenCV(object):
 
         # Remove contours less than 1/2 the median square size
         if self.remove_dwarf_candidates(int(self.median_square_area/2)):
-            self.display_candidates(self.image, "100 remove dwarf squares")
+            self.display_candidates(self.image, "80 remove dwarf squares")
 
         self.get_median_square_area()
 
 
         # Remove contours more than 2x the median square size
         if self.remove_gigantic_candidates(int(self.median_square_area * 2)):
-            self.display_candidates(self.image, "110 remove larger squares")
+            self.display_candidates(self.image, "90 remove larger squares")
 
         self.get_median_square_area()
 
@@ -1324,7 +1272,7 @@ class RubiksOpenCV(object):
 
         # remove all contours that are outside the boundry of the cube
         if self.remove_contours_outside_cube(self.candidates):
-            self.display_candidates(self.image, "120 post outside cube removal")
+            self.display_candidates(self.image, "100 post outside cube removal")
 
 
         # Find the cube size (3x3x3, 4x4x4, etc)
@@ -1339,13 +1287,13 @@ class RubiksOpenCV(object):
 
         # remove contours outside the boundry
         if self.remove_contours_outside_cube(self.candidates):
-            self.display_candidates(self.image, "130 post outside cube removal")
+            self.display_candidates(self.image, "110 post outside cube removal")
 
 
         # Now that we know the median size of each square, go back and
         # remove non-squares one more time
         if self.remove_non_square_candidates(self.median_square_area):
-            self.display_candidates(self.image, "140 post non-square-candidates removal")
+            self.display_candidates(self.image, "120 post non-square-candidates removal")
 
 
         # We just removed contours outside the boundry and non-square contours, re-define the boundry
