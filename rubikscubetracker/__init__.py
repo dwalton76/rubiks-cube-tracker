@@ -1612,17 +1612,20 @@ class RubiksVideo(RubiksOpenCV):
         capture = cv2.VideoCapture(self.webcam)
 
         # Set the capture resolution
-        capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, width)
-        capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, height)
-        # capture.set(cv2.cv.CV_CAP_PROP_SATURATION, 0.10)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
         # Create the window and set the size to match the capture resolution
-        cv2.namedWindow("Fig", cv2.cv.CV_WINDOW_NORMAL)
+        cv2.namedWindow("Fig", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Fig", window_width, window_height)
 
         while True:
             self.image = None
             (ret, self.image) = capture.read()
+
+            if not ret:
+                log.warning("capture failed")
+                continue
 
             # If we've already solve the cube and have instructions printed on the
             # screen don't bother looking for the cube in the image
@@ -1740,10 +1743,8 @@ class RubiksVideo(RubiksOpenCV):
                         output = check_output(cmd, shell=True)
 
                         for line in output.splitlines():
-                            line = line.strip()
-                            if line.startswith('Solution:'):
-                                self.solution = line[10:]
-                                break
+                            self.solution = line.strip()
+                            break
 
                         if self.size >= 4:
                             self.solution = "See /tmp/solution.html"
