@@ -36,7 +36,7 @@ parser.add_argument('--debug', action='store_true', help='Enable debugs')
 parser.add_argument('-w', '--webcam', type=int, default=None, help='webcam to use...0, 1, etc')
 args = parser.parse_args()
 
-if not args.webcam and not args.directory and not args.filename:
+if args.webcam is None and args.directory is None and args.filename is None:
     log.error("args.directory and args.filename are None")
     sys.exit(1)
 
