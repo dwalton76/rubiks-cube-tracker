@@ -390,6 +390,18 @@ class CubeNotFound(Exception):
     pass
 
 
+class RowColSizeMisMatch(Exception):
+    pass
+
+
+class FoundMulitpleContours(Exception):
+    pass
+
+
+class ZeroCandidates(Exception):
+    pass
+
+
 class CustomContour(object):
 
     def __init__(self, rubiks_parent, index, contour, heirarchy, debug):
@@ -922,8 +934,11 @@ class RubiksOpenCV(object):
         con.row_index = int(round((con.cY - self.top)/median_row_height))
         con.col_index = int(round((con.cX - self.left)/median_col_width))
 
-        assert con.row_index < self.size, "con.row_index is %d, must be less than size %d" % (con.row_index, self.size)
-        assert con.col_index < self.size, "con.col_index is %d, must be less than size %d" % (con.col_index, self.size)
+        if con.row_index >= self.size:
+            raise RowColSizeMisMatch("con.row_index is %d, must be less than size %d" % (con.row_index, self.size))
+
+        if con.col_index >= self.size:
+            raise RowColSizeMisMatch("con.col_index is %d, must be less than size %d" % (con.col_index, self.size))
 
         if self.debug:
             log.info("set_contour_row_col_index %s, col_index %d, row_index %d\n" % (con, con.col_index, con.row_index))
@@ -1071,7 +1086,8 @@ class RubiksOpenCV(object):
                 log.info("get_mean_row_col_for_index: col_index %d, total_next_X %d, candidates_next_X %d, mean_X %d" % (col_index, total_next_X, candidates_next_X, mean_X))
 
         else:
-            assert candidates_X, "candidates_X is %s, it cannot be zero" % candidates_X
+            if not candidates_X:
+                raise ZeroCandidates("candidates_X is %s, it cannot be zero" % candidates_X)
 
         if candidates_Y:
             mean_Y = int(total_Y/candidates_Y)
@@ -1092,7 +1108,8 @@ class RubiksOpenCV(object):
                 log.info("get_mean_row_col_for_index: col_index %d, total_next_Y %d, candidates_next_Y %d, mean_Y %d" % (col_index, total_next_Y, candidates_next_Y, mean_Y))
 
         else:
-            assert candidates_Y, "candidates_Y is %s, it cannot be zero" % candidates_Y
+            if not candidates_Y:
+                raise ZeroCandidates("candidates_Y is %s, it cannot be zero" % candidates_Y)
 
         return (mean_X, mean_Y)
 
@@ -1124,7 +1141,7 @@ class RubiksOpenCV(object):
             self.set_contour_row_col_index(con)
 
             if (con.col_index, con.row_index) in con_by_row_col_index:
-                assert False, "Found multiple contours for (%d, %d)" % (con.col_index, con.row_index)
+                raise FoundMulitpleContours("(%d, %d)" % (con.col_index, con.row_index))
             else:
                 con_by_row_col_index[(con.col_index, con.row_index)] = con
 
@@ -1177,7 +1194,7 @@ class RubiksOpenCV(object):
 
         return missing
 
-    def analyze(self, webcam, gamma_value=1.5):
+    def analyze(self, webcam, gamma_value=1.5, cube_size=None):
         assert self.image is not None, "self.image is None"
         (self.img_height, self.img_width) = self.image.shape[:2]
         self.img_area = int(self.img_height * self.img_width)
@@ -1187,9 +1204,10 @@ class RubiksOpenCV(object):
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         #self.display_candidates(gray, "09 gray")
 
-        # dwalton this is probably too expensive for --webcam mode...test it
         if webcam:
             nonoise = gray.copy()
+
+        # This is too CPU intensive for --webcam mode
         else:
             nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
             self.display_candidates(nonoise, "10 removed noise")
@@ -1285,8 +1303,11 @@ class RubiksOpenCV(object):
 
 
         # Find the cube size (3x3x3, 4x4x4, etc)
-        if not self.get_cube_size():
-            raise CubeNotFound("%s invalid cube size %sx%sx%s" % (self.name, self.size, self.size, self.size))
+        if cube_size:
+            self.size = cube_size
+        else:
+            if not self.get_cube_size():
+                raise CubeNotFound("%s invalid cube size %sx%sx%s" % (self.name, self.size, self.size, self.size))
 
 
         # Now that we know the cube size, re-define the boundry
@@ -1429,7 +1450,7 @@ class RubiksImage(RubiksOpenCV):
             cv2.imshow(desc, image)
             cv2.waitKey(0)
 
-    def analyze_file(self, filename):
+    def analyze_file(self, filename, cube_size=None):
         self.reset()
 
         if not os.path.exists(filename):
@@ -1438,7 +1459,7 @@ class RubiksImage(RubiksOpenCV):
 
         log.info("Analyze %s" % filename)
         self.image = cv2.imread(filename)
-        return self.analyze(webcam=False)
+        return self.analyze(webcam=False, cube_size=cube_size)
 
 
 class RubiksVideo(RubiksOpenCV):
@@ -1600,7 +1621,7 @@ class RubiksVideo(RubiksOpenCV):
                         self.draw_circles()
                         self.video_reset(False)
 
-                except CubeNotFound:
+                except (CubeNotFound, RowColSizeMisMatch, FoundMulitpleContours, ZeroCandidates) as e:
                     self.draw_circles()
                     self.video_reset(False)
 

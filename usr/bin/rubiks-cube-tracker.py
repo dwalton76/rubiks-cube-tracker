@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 
 from rubikscubetracker import RubiksVideo, RubiksImage, merge_two_dicts
+from math import sqrt
 import argparse
 import json
 import logging
@@ -19,7 +20,7 @@ def convert_keys_to_int(dict_to_convert):
 
 # Logging
 logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(filename)12s %(levelname)8s: %(message)s')
+                    format='%(asctime)s %(filename)22s %(levelname)8s: %(message)s')
 log = logging.getLogger(__name__)
 
 # Color the errors and warnings in red
@@ -59,7 +60,8 @@ else:
     if not os.path.isdir(args.directory):
         print "ERROR: directory %s does not exist" % args.directory
         sys.exit(1)
-    prev_side_square_count = None
+    cube_size = None
+    cube_size = None
 
     for (side_index, side_name) in enumerate(('U', 'L', 'F', 'R', 'B', 'D')):
         filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
@@ -67,14 +69,16 @@ else:
         if os.path.exists(filename):
             #log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
 
-            if side_index == 3:
-                rimg = RubiksImage(side_index, side_name, debug=args.debug)
-            else:
-                rimg = RubiksImage(side_index, side_name)
+            #log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
+            rimg = RubiksImage(side_index, side_name, debug=args.debug)
+            rimg.analyze_file(filename, cube_size)
 
-            rimg.analyze_file(filename)
-            side_square_count = len(rimg.data.keys())
+            if cube_size is None:
+                side_square_count = len(rimg.data.keys())
+                cube_size = int(sqrt(side_square_count))
+
             data = merge_two_dicts(data, rimg.data)
+            # log.info("cube_size %d" % cube_size)
 
         else:
             print "ERROR: %s does not exist" % filename
