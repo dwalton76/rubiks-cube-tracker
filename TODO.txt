@@ -1,6 +1,0 @@
-
-- Display the first image in ascii so you can tell if the camera is way off
-    https://www.google.com/search?q=python+png+to+ascii&oq=python+png+to+ascii&aqs=chrome..69i57.3285j0j7&sourceid=chrome&ie=UTF-8
-
-- opencv for python3?
-
