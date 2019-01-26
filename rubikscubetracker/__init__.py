@@ -735,24 +735,12 @@ class RubiksOpenCV(object):
     def remove_square_within_square_candidates(self):
         candidates_to_remove = []
 
-        # Remove parents with square child contours
+        # All non-square contours have been removed by this point so remove any contour
+        # that has a child contour. This allows us to remove the outer square in the
+        # "square within a square" scenario.
         for con in self.candidates:
-            if con.is_square() and con.child_is_square():
+            if con.get_child():
                 candidates_to_remove.append(con)
-
-        # Remove contours whose parents are square
-        for con in self.candidates:
-            if con in candidates_to_remove:
-                continue
-
-            # The parent must be a square but cannot be a gigantic square (ie
-            # the entire edge of the picture had a contour). Gigantic squares
-            # have been removed from the candidates by the time we get here.
-            if con.parent_is_candidate() and con.parent_is_square():
-                parent = con.get_parent()
-
-                if parent not in candidates_to_remove:
-                    candidates_to_remove.append(con)
 
         for x in candidates_to_remove:
             self.candidates.remove(x)
@@ -850,6 +838,10 @@ class RubiksOpenCV(object):
 
                 if self.right is None or con.cX > self.right:
                     self.right = con.cX
+
+            else:
+                if self.debug:
+                    log.info("get_cube_boundry: %s contour is NOT square" % (con))
 
         if self.size:
             if self.debug:
@@ -1730,7 +1722,7 @@ class RubiksVideo(RubiksOpenCV):
                             self.solution = line.strip()
 
                         if self.size >= 4:
-                            self.solution = "See /tmp/solution.html"
+                            self.solution = "See /tmp/rubiks-cube-NxNxN-solver/index.html"
                     print(self.solution)
 
                 else:
@@ -1741,7 +1733,7 @@ class RubiksVideo(RubiksOpenCV):
 
             if self.solution:
 
-                if self.solution == 'See /tmp/solution.html' or self.solution == 'SOLVED':
+                if self.solution == 'See /tmp/rubiks-cube-NxNxN-solver/index.html' or self.solution == 'SOLVED':
                     cv2.putText(self.image, self.solution, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
                 else:
                     slist = self.solution.split()
