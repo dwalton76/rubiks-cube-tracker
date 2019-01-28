@@ -35,6 +35,10 @@ import time
 
 log = logging.getLogger(__name__)
 
+def click_event(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print x, y
+
 
 def merge_two_dicts(x, y):
     """
@@ -433,11 +437,7 @@ class CustomContour(object):
         return "Contour #%d (%s, %s)" % (self.index, self.cX, self.cY)
 
     def is_square(self, target_area=None):
-
-        if self.rubiks_parent.size == 6:
-            AREA_THRESHOLD = 0.50
-        else:
-            AREA_THRESHOLD = 0.25
+        AREA_THRESHOLD = 0.50
 
         if not approx_is_square(self.approx):
             return False
@@ -449,7 +449,7 @@ class CustomContour(object):
             area_ratio = float(target_area / self.area)
 
             if area_ratio < float(1.0 - AREA_THRESHOLD) or area_ratio > float(1.0 + AREA_THRESHOLD):
-                # log.info("FALSE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
+                #log.info("FALSE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
                 return False
             else:
                 # log.info("TRUE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
@@ -460,12 +460,13 @@ class CustomContour(object):
     def get_child(self):
         # Each contour has its own information regarding what hierarchy it
         # is, who is its parent, who is its parent etc. OpenCV represents it as
-        # an array of four values : [Next, Previous, First_parent, Parent]
+        # an array of four values : [Next, Previous, First_child, Parent]
         child = self.heirarchy[2]
 
-        if child != -1:
+        if child == -1:
+            return None
+        else:
             return self.rubiks_parent.contours_by_index[child]
-        return None
 
     def child_is_square(self):
         """
@@ -491,12 +492,13 @@ class CustomContour(object):
     def get_parent(self):
         # Each contour has its own information regarding what hierarchy it
         # is, who is its parent, who is its parent etc. OpenCV represents it as
-        # an array of four values : [Next, Previous, First_parent, Parent]
+        # an array of four values : [Next, Previous, First_child, Parent]
         parent = self.heirarchy[3]
 
-        if parent != -1:
+        if parent == -1:
+            return None
+        else:
             return self.rubiks_parent.contours_by_index[parent]
-        return None
 
     def parent_is_candidate(self):
         parent_con = self.get_parent()
@@ -670,6 +672,46 @@ class RubiksOpenCV(object):
         #assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
+    def remove_candidate_contour(self, contour_to_remove):
+
+        # heirarchy is [Next, Previous, First_child, Parent]
+        (_, _, contour_to_remove_child, contour_to_remove_parent) = contour_to_remove.heirarchy
+        #log.warning("removing %s with child %s, parent %s" % (contour_to_remove, contour_to_remove_child, contour_to_remove_parent))
+
+        for con in self.candidates:
+            if con == contour_to_remove:
+                continue
+
+            (_, _, child, parent) = con.heirarchy
+            #log.info("    %s child %s, parent %s" % (con, child, parent))
+
+            if child == contour_to_remove.index:
+                con.heirarchy[2] = contour_to_remove_child
+                #log.info("    %s child is now %s" % (con, con.heirarchy[2]))
+
+            if parent == contour_to_remove.index:
+                con.heirarchy[3] = contour_to_remove_parent
+
+                if contour_to_remove_parent != -1:
+                    self.contours_by_index[contour_to_remove_parent].heirarchy[2] = con.index
+
+                #log.info("    %s parent is now %s" % (con, con.heirarchy[3]))
+
+        del self.contours_by_index[contour_to_remove.index]
+        self.candidates.remove(contour_to_remove)
+
+        for con in self.candidates:
+            child_index = con.heirarchy[2]
+            parent_index = con.heirarchy[3]
+
+            if child_index != -1:
+                child = self.contours_by_index[child_index]
+                child.heirarchy[3] = con.index
+
+            if parent_index != -1:
+                parent = self.contours_by_index[parent_index]
+                parent.heirarchy[2] = con.index
+
     def remove_non_square_candidates(self, median_square_area=None):
         """
         Remove non-square contours from candidates.  Return a list of the ones we removed.
@@ -681,15 +723,12 @@ class RubiksOpenCV(object):
                 candidates_to_remove.append(con)
 
         for x in candidates_to_remove:
-            self.candidates.remove(x)
-
-            #if self.debug:
-            #    log.info("removing non-square contour %s" % x)
+            self.remove_candidate_contour(x)
 
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info("remove-non-square-candidates: %d removed, %d remain, median_square_area %s" %
+            log.info("remove-non-square-candidates: %d removed, %d remain, median_square_area %s\n" %
                 (removed, len(self.candidates), median_square_area))
 
         if removed:
@@ -706,10 +745,13 @@ class RubiksOpenCV(object):
                 candidates_to_remove.append(con)
 
         for x in candidates_to_remove:
-            self.candidates.remove(x)
+            self.remove_candidate_contour(x)
 
         removed = len(candidates_to_remove)
-        log.debug("remove-dwarf-candidates %d removed, %d remain" % (removed, len(self.candidates)))
+
+        if self.debug:
+            log.info("remove-dwarf-candidates %d removed, %d remain\n" % (removed, len(self.candidates)))
+
         return candidates_to_remove
 
     def remove_gigantic_candidates(self, area_cutoff):
@@ -723,12 +765,12 @@ class RubiksOpenCV(object):
                     log.info("remove_gigantic_candidates: %s area %d is greater than cutoff %d" % (con, con.area, area_cutoff))
 
         for x in candidates_to_remove:
-            self.candidates.remove(x)
+            self.remove_candidate_contour(x)
 
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info("remove-gigantic-candidates: %d removed, %d remain" % (removed, len(self.candidates)))
+            log.info("remove-gigantic-candidates: %d removed, %d remain\n" % (removed, len(self.candidates)))
 
         return candidates_to_remove
 
@@ -739,14 +781,25 @@ class RubiksOpenCV(object):
         # that has a child contour. This allows us to remove the outer square in the
         # "square within a square" scenario.
         for con in self.candidates:
-            if con.get_child():
+            child = con.get_child()
+
+            if child:
                 candidates_to_remove.append(con)
 
+                if self.debug:
+                    log.info("con %s will be removed, has child %s" % (con, child))
+            else:
+                if self.debug:
+                    log.info("con %s will remain" % con)
+
         for x in candidates_to_remove:
-            self.candidates.remove(x)
+            self.remove_candidate_contour(x)
 
         removed = len(candidates_to_remove)
-        log.debug("remove-square-within-square-candidates %d removed, %d remain" % (removed, len(self.candidates)))
+
+        if self.debug:
+            log.info("remove-square-within-square-candidates %d removed, %d remain\n" % (removed, len(self.candidates)))
+
         return True if removed else False
 
     def get_median_square_area(self):
@@ -1186,13 +1239,32 @@ class RubiksOpenCV(object):
 
         return missing
 
-    def analyze(self, webcam, gamma_value=1.5, cube_size=None):
+    def analyze(self, webcam, cube_size=None):
         assert self.image is not None, "self.image is None"
+
+        (self.img_height, self.img_width) = self.image.shape[:2]
+        #log.warning("%d x %d" % (self.img_height, self.img_width))
+
+        # crop the image to the part that we know contains the cube
+        if False and not webcam and self.img_height == 1080 and self.img_width == 1920:
+
+            if "side-U" in self.name or "side-D" in self.name:
+                x = 684
+                y = 109
+                w =  780
+                h =  840
+            else:
+                x = 560
+                y = 300
+                w =  840
+                h =  740
+
+            self.image = self.image[y:y+h, x:x+w]
+
         (self.img_height, self.img_width) = self.image.shape[:2]
         self.img_area = int(self.img_height * self.img_width)
         self.display_candidates(self.image, "00 original (%s x %x)" % (self.img_height, self.img_width))
 
-        # Removing noise helps a TON with edge detection
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         #self.display_candidates(gray, "09 gray")
 
@@ -1201,6 +1273,7 @@ class RubiksOpenCV(object):
 
         # This is too CPU intensive for --webcam mode
         else:
+            # Removing noise helps a TON with edge detection
             nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
             self.display_candidates(nonoise, "10 removed noise")
 
@@ -1253,44 +1326,48 @@ class RubiksOpenCV(object):
         if self.remove_non_square_candidates():
             self.display_candidates(self.image, "50 post non-squares removal #1")
 
+        '''
+        for con in self.candidates:
+            child_index = con.heirarchy[2]
+            parent_index = con.heirarchy[3]
+            log.info("%s has child %s, parent %s" % (con, child_index, parent_index))
+        '''
 
         # If a contour is more than 25% of the entire image throw it away
         if self.remove_gigantic_candidates(int(self.img_area/4)):
             self.display_candidates(self.image, "60 remove gigantic squares")
-
-
-        # Sometimes we find a square within a square due to the black space
-        # between the cube squares.  Throw away the outside square (it contains
-        # the black edge) and keep the inside square.
-        if self.remove_square_within_square_candidates():
-            self.display_candidates(self.image, "70 post square-within-square removal #1")
-
 
         # Find the median square size, we need that in order to find the
         # squares that make up the boundry of the cube
         if not self.get_median_square_area():
             raise CubeNotFound("%s no squares in image" % self.name)
 
-
         # Remove contours less than 1/2 the median square size
         if self.remove_dwarf_candidates(int(self.median_square_area/2)):
-            self.display_candidates(self.image, "80 remove dwarf squares")
+            if not self.get_median_square_area():
+                raise CubeNotFound("%s no squares in image" % self.name)
+            self.display_candidates(self.image, "70 remove dwarf squares")
 
-        self.get_median_square_area()
 
+        # Sometimes we find a square within a square due to the black space
+        # between the cube squares.  Throw away the outside square (it contains
+        # the black edge) and keep the inside square.
+        if self.remove_square_within_square_candidates():
+            self.display_candidates(self.image, "80 post square-within-square removal #1")
 
         # Remove contours more than 2x the median square size
         if self.remove_gigantic_candidates(int(self.median_square_area * 2)):
+            if not self.get_median_square_area():
+                raise CubeNotFound("%s no squares in image" % self.name)
             self.display_candidates(self.image, "90 remove larger squares")
-
-        self.get_median_square_area()
 
         if not self.get_cube_boundry(False):
             raise CubeNotFound("%s could not find the cube boundry" % self.name)
 
-
         # remove all contours that are outside the boundry of the cube
         if self.remove_contours_outside_cube(self.candidates):
+            if not self.get_median_square_area():
+                raise CubeNotFound("%s no squares in image" % self.name)
             self.display_candidates(self.image, "100 post outside cube removal")
 
 
@@ -1309,6 +1386,8 @@ class RubiksOpenCV(object):
 
         # remove contours outside the boundry
         if self.remove_contours_outside_cube(self.candidates):
+            if not self.get_median_square_area():
+                raise CubeNotFound("%s no squares in image" % self.name)
             self.display_candidates(self.image, "110 post outside cube removal")
 
 
@@ -1437,9 +1516,11 @@ class RubiksImage(RubiksOpenCV):
                 cv2.drawContours(tmp_image, to_draw_missing_approx, -1, (255, 255, 0), 2)
 
             cv2.imshow(desc, tmp_image)
+            cv2.setMouseCallback(desc, click_event)
             cv2.waitKey(0)
         else:
             cv2.imshow(desc, image)
+            cv2.setMouseCallback(desc, click_event)
             cv2.waitKey(0)
 
     def analyze_file(self, filename, cube_size=None):
@@ -1451,6 +1532,7 @@ class RubiksImage(RubiksOpenCV):
 
         log.info("Analyze %s" % filename)
         self.image = cv2.imread(filename)
+        self.name = filename
         return self.analyze(webcam=False, cube_size=cube_size)
 
 
