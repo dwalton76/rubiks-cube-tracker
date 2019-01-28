@@ -862,6 +862,14 @@ class RubiksOpenCV(object):
                         if row_square_neighbors < 2 or col_square_neighbors < 2:
                             continue
 
+                    elif self.size == 5:
+                        if row_square_neighbors < 1 or col_square_neighbors < 1:
+                            continue
+
+                    elif self.size == 4:
+                        if row_square_neighbors < 1 or col_square_neighbors < 1:
+                            continue
+
                     elif self.size == 2:
                         if not row_neighbors and not col_neighbors:
                             continue
@@ -1173,7 +1181,7 @@ class RubiksOpenCV(object):
             if webcam:
                 return []
             else:
-                assert False, "%dx%dx%d missing_count is %d, we should not be here" % (self.size, self.size, self.size, missing_count)
+                raise Exception("%dx%dx%d missing_count is %d, we should not be here" % (self.size, self.size, self.size, missing_count))
 
         if self.debug:
             log.info("find_missing_squares: size %d, missing %d squares" % (self.size, missing_count))
