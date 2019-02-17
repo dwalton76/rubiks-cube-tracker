@@ -83,7 +83,7 @@ if __name__ == '__main__':
         log.info("test_dir: %s" % test_dir)
 
         try:
-            output = subprocess.check_output(['rubiks-cube-tracker.py',
+            output = subprocess.check_output(['./usr/bin/rubiks-cube-tracker.py',
                                               '--directory',
                                               test_dir]).decode('ascii').splitlines()[0].strip()
         except subprocess.CalledProcessError as e:

@@ -58,7 +58,7 @@ else:
     data = {}
 
     if not os.path.isdir(args.directory):
-        print "ERROR: directory %s does not exist" % args.directory
+        sys.stderr.write("ERROR: directory %s does not exist\n" % args.directory)
         sys.exit(1)
     cube_size = None
     cube_size = None
@@ -81,7 +81,7 @@ else:
             # log.info("cube_size %d" % cube_size)
 
         else:
-            print "ERROR: %s does not exist" % filename
+            sys.stderr.write("ERROR: %s does not exist\n" % filename)
             sys.exit(1)
 
     print(json.dumps(data, sort_keys=True))
