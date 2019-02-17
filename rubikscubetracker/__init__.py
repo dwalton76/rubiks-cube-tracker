@@ -967,34 +967,37 @@ class RubiksOpenCV(object):
         return self.size in (2, 3, 4, 5, 6, 7, 8, 9, 10)
 
     def set_contour_row_col_index(self, con):
-        cube_height = self.bottom - self.top + self.median_square_width + self.black_border_width
-        cube_width = self.right - self.left + self.median_square_width + self.black_border_width
+        cube_height = self.bottom - self.top + self.median_square_width
+        cube_width = self.right - self.left + self.median_square_width
 
-        row_size = int(cube_height / (self.median_square_width + self.black_border_width))
+        # row_size is how many rows of squares we see
+        row_size = round(cube_height / float(self.median_square_width + self.black_border_width))
         row_size = min(self.size, row_size)
         median_row_height = float(cube_height / row_size)
 
-        col_size = int(cube_width / (self.median_square_width + self.black_border_width))
+        # col_size is how many cols of squares we see
+        col_size = round(cube_width / float(self.median_square_width + self.black_border_width))
         col_size = min(self.size, col_size)
         median_col_width = float(cube_width / col_size)
 
         if self.debug:
-            log.info("set_contour_row_col_index %s, top %d, bottom %d, cube_height %d, row_size %s, median_row_height %s, median_square_width %d" %
+            log.info("border width %s" % self.black_border_width)
+            log.info("set_contour_row_col_index %s, top %s, bottom %s, cube_height %s, row_size %s, median_row_height %s, median_square_width %s" %
                 (con, self.top, self.bottom, cube_height, row_size, median_row_height, self.median_square_width))
-            log.info("set_contour_row_col_index %s, left %d, right %d, cube_width %d, col_size %s, median_col_width %s, median_square_width %d" %
+            log.info("set_contour_row_col_index %s, left %s, right %s, cube_width %s, col_size %s, median_col_width %s, median_square_width %s" %
                 (con, self.left, self.right, cube_width, col_size, median_col_width, self.median_square_width))
 
         con.row_index = int(round((con.cY - self.top)/median_row_height))
         con.col_index = int(round((con.cX - self.left)/median_col_width))
 
         if con.row_index >= self.size:
-            raise RowColSizeMisMatch("con.row_index is %d, must be less than size %d" % (con.row_index, self.size))
+            raise RowColSizeMisMatch("con.row_index is %s, must be less than size %s" % (con.row_index, self.size))
 
         if con.col_index >= self.size:
-            raise RowColSizeMisMatch("con.col_index is %d, must be less than size %d" % (con.col_index, self.size))
+            raise RowColSizeMisMatch("con.col_index is %s, must be less than size %s" % (con.col_index, self.size))
 
         if self.debug:
-            log.info("set_contour_row_col_index %s, col_index %d, row_index %d\n" % (con, con.col_index, con.row_index))
+            log.info("set_contour_row_col_index %s, col_index %s, row_index %s\n" % (con, con.col_index, con.row_index))
 
     def remove_contours_outside_cube(self, contours):
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
@@ -1194,7 +1197,7 @@ class RubiksOpenCV(object):
             self.set_contour_row_col_index(con)
 
             if (con.col_index, con.row_index) in con_by_row_col_index:
-                raise FoundMulitpleContours("(%d, %d)" % (con.col_index, con.row_index))
+                raise FoundMulitpleContours("(%d, %d) value %s, con %s" % (con.col_index, con.row_index, con_by_row_col_index[(con.col_index, con.row_index)], con))
             else:
                 con_by_row_col_index[(con.col_index, con.row_index)] = con
 
