@@ -556,6 +556,7 @@ class RubiksOpenCV(object):
         self.data = {}
         self.candidates = []
         self.contours_by_index = {}
+        self.mean_square_area   = None
         self.median_square_area = None
         self.black_border_width = None
         self.top                = None
@@ -808,11 +809,13 @@ class RubiksOpenCV(object):
         """
         square_areas = []
         square_widths = []
+        total_square_area = 0
 
         for con in self.candidates:
             if con.is_square():
                 square_areas.append(int(con.area))
                 square_widths.append(int(con.width))
+                total_square_area += int(con.area)
 
         if square_areas:
             square_areas = sorted(square_areas)
@@ -824,12 +827,13 @@ class RubiksOpenCV(object):
             # throw us off if we take the exact median.
             square_area_index = int((2 * num_squares)/3)
 
+            self.mean_square_area = int(total_square_area / len(square_areas))
             self.median_square_area = int(square_areas[square_area_index])
             self.median_square_width = int(square_widths[square_area_index])
 
             if self.debug:
-                log.info("get_median_square_area: %d squares, median index %d, median area %d, all square areas %s" %\
-                    (num_squares, square_area_index, self.median_square_area, ','.join(map(str, square_areas))))
+                log.info("get_median_square_area: %d squares, median index %d, median area %s, mean area %s, all square areas %s" %\
+                    (num_squares, square_area_index, self.median_square_area, self.mean_square_area, ','.join(map(str, square_areas))))
                 log.info("get_median_square_area: %d squares, median index %d, median width %d, all square widths %s" %\
                     (num_squares, square_area_index, self.median_square_width, ','.join(map(str, square_widths))))
 
@@ -1257,18 +1261,18 @@ class RubiksOpenCV(object):
         #log.warning("%d x %d" % (self.img_height, self.img_width))
 
         # crop the image to the part that we know contains the cube
-        if False and not webcam and self.img_height == 1080 and self.img_width == 1920:
+        if not webcam and self.img_height == 1080 and self.img_width == 1920:
 
             if "side-U" in self.name or "side-D" in self.name:
-                x = 684
-                y = 109
-                w =  780
-                h =  840
+                x = 600
+                y = 160
+                w =  800
+                h =  860
             else:
-                x = 560
-                y = 300
-                w =  840
-                h =  740
+                x = 450
+                y = 160
+                w =  900
+                h =  820
 
             self.image = self.image[y:y+h, x:x+w]
 
@@ -1289,7 +1293,7 @@ class RubiksOpenCV(object):
             self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        canny = cv2.Canny(nonoise, 10, 30)
+        canny = cv2.Canny(nonoise, 5, 20)
         self.display_candidates(canny, "20 canny")
 
         # dilate the image to make the edge lines thicker
