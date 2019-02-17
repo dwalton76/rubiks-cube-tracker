@@ -1019,8 +1019,8 @@ class RubiksOpenCV(object):
             if con.cY < top or con.cY > bottom or con.cX < left or con.cX > right:
                 contours_to_remove.append(con)
 
-        for con in contours_to_remove:
-            contours.remove(con)
+        for x in contours_to_remove:
+            self.remove_candidate_contour(x)
 
         removed = len(contours_to_remove)
         log.debug("remove-contours-outside-cube %d removed, %d remain" % (removed, len(contours)))
@@ -1030,26 +1030,23 @@ class RubiksOpenCV(object):
         cube_height = self.bottom - self.top
         cube_width = self.right - self.left
 
-        if cube_width > cube_height:
+        if cube_width <= cube_height:
             pixels = cube_width
             pixels_desc = 'width'
         else:
             pixels = cube_height
             pixels_desc = 'height'
 
-        DILATION_PIXELS = 6
-
         # subtract the pixels of the size-1 squares
         pixels -= (self.size - 1) * self.median_square_width
-
-        # subtrackt the pixels consumed by dilating the edges
-        pixels -= (self.size - 1) * DILATION_PIXELS
-
         self.black_border_width = int(pixels/(self.size - 1))
 
         if self.debug:
-            log.warning("get_black_border_width: top %s, bottom %s, left %s, right %s, pixesl %s (%s), median_square_width %d, black_border_width %s" %
+            log.warning("get_black_border_width: top %s, bottom %s, left %s, right %s, pixels %s (%s), median_square_width %d, black_border_width %s" %
                 (self.top, self.bottom, self.left, self.right, pixels, pixels_desc, self.median_square_width, self.black_border_width))
+
+        assert self.black_border_width < self.median_square_width,\
+            "black_border_width %s, median_square_width %s" % (self.black_border_width, self.median_square_width)
 
     def sanity_check_results(self, contours, debug=False):
 
@@ -1173,22 +1170,23 @@ class RubiksOpenCV(object):
 
         return (mean_X, mean_Y)
 
-    def find_missing_squares(self, webcam):
+    def remove_outside_contours(self, extra_count):
+        contours_to_remove = []
 
-        # It is better if we actually locate all the squares, this is doable with
-        # 4x4x4 and smaller but for larger than that there are so many squares it
-        # becomes difficult to find all of them in a single frame.
-        if webcam and self.size <= 4:
-            return []
+        # TODO this logic needs some more work but I was more test-data entries first
+        for con in self.candidates:
+            (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
+                self.get_contour_neighbors(self.candidates, con)
+            #log.info("%s row_square_neighbors %s, col_square_neighbors %s" %
+            #    (con, row_square_neighbors, col_square_neighbors))
 
-        # How many squares are missing?
-        missing_count = (self.size * self.size) - len(self.candidates)
+            if not row_square_neighbors or not col_square_neighbors:
+                contours_to_remove.append(con)
 
-        if missing_count <= 0:
-            if webcam:
-                return []
-            else:
-                raise Exception("%dx%dx%d missing_count is %d, we should not be here" % (self.size, self.size, self.size, missing_count))
+        for con in contours_to_remove:
+            self.candidates.remove(con)
+
+    def find_missing_squares(self, missing_count):
 
         if self.debug:
             log.info("find_missing_squares: size %d, missing %d squares" % (self.size, missing_count))
@@ -1218,10 +1216,7 @@ class RubiksOpenCV(object):
             log.info("find_missing_squares: missing_count %d, needed %s" % (missing_count, pformat(needed)))
 
         if len(needed) != missing_count:
-            if webcam:
-                return []
-            else:
-                raise Exception("missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed)))
+            raise Exception("missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed)))
 
         # For each of 'needed', create a CustomContour() object at the coordinates
         # where we need a contour. This will be a very small square contour but that
@@ -1411,20 +1406,32 @@ class RubiksOpenCV(object):
 
         # Find the size of the gap between two squares
         self.get_black_border_width()
+        missing = []
 
-        if self.sanity_check_results(self.candidates):
-            missing = []
-        else:
-            missing = self.find_missing_squares(webcam)
+        if not self.sanity_check_results(self.candidates):
 
-            if not missing:
-                if webcam:
-                    return False
+            # How many squares are missing?
+            missing_count = (self.size * self.size) - len(self.candidates)
+
+            # We are short some contours
+            if missing_count > 0:
+                missing = self.find_missing_squares(missing_count)
+
+                if missing:
+                    self.candidates.extend(missing)
                 else:
-                    log.info("Could not find missing squares needed to create a valid cube")
-                    raise Exception("Unable to extract image from %s" % self.name)
+                    if webcam:
+                        return False
+                    else:
+                        log.info("Could not find missing squares needed to create a valid cube")
+                        raise Exception("Unable to extract image from %s" % self.name)
 
-            self.candidates.extend(missing)
+            # We have too many contours
+            elif missing_count < 0:
+                self.remove_outside_contours(missing_count * -1)
+
+            else:
+                raise Exception("missing_count %s we should not be here" % missing_count)
 
         self.display_candidates(self.image, "150 Final", missing)
 

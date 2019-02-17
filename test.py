@@ -67,6 +67,7 @@ if __name__ == '__main__':
     # - in the log output grab the "Final cube for kociema", this is what you put in the entry in the test_cases tuple
     test_cases = (
         ('2x2x2 random 01',    'test-data/2x2x2-random-01.txt'),
+        ('2x2x2 random 02',    'test-data/2x2x2-random-02.txt'),
         ('4x4x4 random 01',    'test-data/4x4x4-random-01.txt'),
     )
 
