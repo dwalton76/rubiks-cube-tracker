@@ -1262,18 +1262,10 @@ class RubiksOpenCV(object):
 
         # crop the image to the part that we know contains the cube
         if not webcam and self.img_height == 1080 and self.img_width == 1920:
-
-            if "side-U" in self.name or "side-D" in self.name:
-                x = 600
-                y = 160
-                w =  800
-                h =  860
-            else:
-                x = 450
-                y = 160
-                w =  900
-                h =  820
-
+            x = 450
+            y = 160
+            w =  900
+            h =  820
             self.image = self.image[y:y+h, x:x+w]
 
         (self.img_height, self.img_width) = self.image.shape[:2]
@@ -1420,7 +1412,6 @@ class RubiksOpenCV(object):
         # Find the size of the gap between two squares
         self.get_black_border_width()
 
-
         if self.sanity_check_results(self.candidates):
             missing = []
         else:
@@ -1444,7 +1435,9 @@ class RubiksOpenCV(object):
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
             (mean_blue, mean_green, mean_red, _) = map(int, cv2.mean(self.image, mask = mask))
             raw_data.append((mean_red, mean_green, mean_blue))
-        log.debug("squares RGB data\n%s\n" % pformat(raw_data))
+
+        if self.debug:
+            log.info("squares RGB data\n%s\n" % pformat(raw_data))
 
         squares_per_side = len(raw_data)
         size = int(math.sqrt(squares_per_side))
@@ -1457,15 +1450,20 @@ class RubiksOpenCV(object):
                 square_indexes_for_row.append(init_square_index + (row * size) + col)
             square_indexes.append(square_indexes_for_row)
 
-        log.debug("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
-        square_indexes = compress_2d_array(square_indexes)
-        log.debug("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
+        if self.debug:
+            log.info("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
+            square_indexes = compress_2d_array(square_indexes)
+            log.info("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
+        else:
+            square_indexes = compress_2d_array(square_indexes)
 
         self.data = {}
         for index in range(squares_per_side):
             square_index = square_indexes[index]
             (red, green, blue) = raw_data[index]
-            log.debug("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
+
+            if self.debug:
+                log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
 
             # self.data is a dict where the square number (as an int) will be
             # the key and a RGB tuple the value
