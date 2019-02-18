@@ -1173,7 +1173,7 @@ class RubiksOpenCV(object):
     def remove_outside_contours(self, extra_count):
         contours_to_remove = []
 
-        # TODO this logic needs some more work but I was more test-data entries first
+        # TODO this logic needs some more work but I want more test-data entries first
         for con in self.candidates:
             (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
                 self.get_contour_neighbors(self.candidates, con)
@@ -1185,6 +1185,8 @@ class RubiksOpenCV(object):
 
         for con in contours_to_remove:
             self.candidates.remove(con)
+
+        assert len(contours_to_remove) == extra_count, "%d contours_to_remove but extra_count is %d" % (len(contours_to_remove), extra_count)
 
     def find_missing_squares(self, missing_count):
 
