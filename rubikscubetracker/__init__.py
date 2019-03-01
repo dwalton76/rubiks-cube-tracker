@@ -35,9 +35,10 @@ import time
 
 log = logging.getLogger(__name__)
 
+
 def click_event(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
-        print x, y
+        print(x, y)
 
 
 def merge_two_dicts(x, y):
@@ -1261,7 +1262,7 @@ class RubiksOpenCV(object):
         if not webcam and self.img_height == 1080 and self.img_width == 1920:
             x = 450
             y = 160
-            w =  900
+            w =  1000
             h =  820
             self.image = self.image[y:y+h, x:x+w]
 
@@ -1282,7 +1283,7 @@ class RubiksOpenCV(object):
             self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        canny = cv2.Canny(nonoise, 5, 20)
+        canny = cv2.Canny(nonoise, 5, 30)
         self.display_candidates(canny, "20 canny")
 
         # dilate the image to make the edge lines thicker
@@ -1347,7 +1348,7 @@ class RubiksOpenCV(object):
             raise CubeNotFound("%s no squares in image" % self.name)
 
         # Remove contours less than 1/2 the median square size
-        if self.remove_dwarf_candidates(int(self.median_square_area/2)):
+        if self.remove_dwarf_candidates(int(self.mean_square_area/2)):
             if not self.get_median_square_area():
                 raise CubeNotFound("%s no squares in image" % self.name)
             self.display_candidates(self.image, "70 remove dwarf squares")
@@ -1359,8 +1360,8 @@ class RubiksOpenCV(object):
         if self.remove_square_within_square_candidates():
             self.display_candidates(self.image, "80 post square-within-square removal #1")
 
-        # Remove contours more than 2x the median square size
-        if self.remove_gigantic_candidates(int(self.median_square_area * 2)):
+        # Remove contours more than 2x the mean square size
+        if self.remove_gigantic_candidates(int(self.mean_square_area * 2)):
             if not self.get_median_square_area():
                 raise CubeNotFound("%s no squares in image" % self.name)
             self.display_candidates(self.image, "90 remove larger squares")
