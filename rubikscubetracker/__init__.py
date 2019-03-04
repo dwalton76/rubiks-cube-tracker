@@ -564,6 +564,9 @@ class RubiksOpenCV(object):
         self.right              = None
         self.bottom             = None
         self.left               = None
+        self.mean_square_area   = 0
+        self.median_square_area = 0
+        self.median_square_width= 0
 
         # 2 for 2x2x2, 3 for 3x3x3, etc
         self.size = None
@@ -609,7 +612,7 @@ class RubiksOpenCV(object):
             if x_delta <= width_wiggle:
                 col_neighbors += 1
 
-                if con.is_square(self.median_square_area):
+                if con.is_square(self.mean_square_area):
                     col_square_neighbors += 1
                     log.debug("%s is a square col neighbor" % con)
                 else:
@@ -620,7 +623,7 @@ class RubiksOpenCV(object):
             if y_delta <= height_wiggle:
                 row_neighbors += 1
 
-                if con.is_square(self.median_square_area):
+                if con.is_square(self.mean_square_area):
                     row_square_neighbors += 1
                     log.debug("%s is a square row neighbor" % con)
                 else:
@@ -714,14 +717,14 @@ class RubiksOpenCV(object):
                 parent = self.contours_by_index[parent_index]
                 parent.heirarchy[2] = con.index
 
-    def remove_non_square_candidates(self, median_square_area=None):
+    def remove_non_square_candidates(self, target_square_area=None):
         """
         Remove non-square contours from candidates.  Return a list of the ones we removed.
         """
         candidates_to_remove = []
 
         for con in self.candidates:
-            if not con.is_square(median_square_area):
+            if not con.is_square(target_square_area):
                 candidates_to_remove.append(con)
 
         for x in candidates_to_remove:
@@ -730,8 +733,8 @@ class RubiksOpenCV(object):
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info("remove-non-square-candidates: %d removed, %d remain, median_square_area %s\n" %
-                (removed, len(self.candidates), median_square_area))
+            log.info("remove-non-square-candidates: %d removed, %d remain, target_square_area %s\n" %
+                (removed, len(self.candidates), target_square_area))
 
         if removed:
             return True
@@ -850,64 +853,59 @@ class RubiksOpenCV(object):
         self.left   = None
 
         for con in self.candidates:
-            if con.is_square(self.median_square_area):
-                (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
-                    self.get_contour_neighbors(self.candidates, con)
+            (row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors) =\
+                self.get_contour_neighbors(self.candidates, con)
 
-                if self.debug:
-                    log.info("get_cube_boundry: %s contour is square, row_neighbors %s, col_neighbors %s" %
-                        (con, row_square_neighbors, col_square_neighbors))
+            if self.debug:
+                log.info("get_cube_boundry: %s row_neighbors %s, col_neighbors %s" %
+                    (con, row_square_neighbors, col_square_neighbors))
 
-                if strict:
-                    if self.size == 7:
-                        if row_square_neighbors < 2 or col_square_neighbors < 2:
-                            continue
-
-                    elif self.size == 6:
-                        if row_square_neighbors < 2 or col_square_neighbors < 2:
-                            continue
-
-                    elif self.size == 5:
-                        if row_square_neighbors < 1 or col_square_neighbors < 1:
-                            continue
-
-                    elif self.size == 4:
-                        if row_square_neighbors < 1 or col_square_neighbors < 1:
-                            continue
-
-                    elif self.size == 2:
-                        if not row_neighbors and not col_neighbors:
-                            continue
-                    else:
-                        if not row_neighbors and not col_neighbors:
-                            continue
-
-                        if not col_neighbors and row_neighbors >= self.size:
-                            continue
-
-                        if not row_neighbors and col_neighbors >= self.size:
-                            continue
-                else:
-                    # Ignore the rogue square with no neighbors. I used to do an "or" here but
-                    # that was too strict for 2x2x2 cubes.
-                    if not row_square_neighbors and not col_square_neighbors:
+            if strict:
+                if self.size == 7:
+                    if row_square_neighbors < 2 or col_square_neighbors < 2:
                         continue
 
-                if self.top is None or con.cY < self.top:
-                    self.top = con.cY
+                elif self.size == 6:
+                    if row_square_neighbors < 2 or col_square_neighbors < 2:
+                        continue
 
-                if self.bottom is None or con.cY > self.bottom:
-                    self.bottom = con.cY
+                elif self.size == 5:
+                    if row_square_neighbors < 1 or col_square_neighbors < 1:
+                        continue
 
-                if self.left is None or con.cX < self.left:
-                    self.left = con.cX
+                elif self.size == 4:
+                    if row_square_neighbors < 1 or col_square_neighbors < 1:
+                        continue
 
-                if self.right is None or con.cX > self.right:
-                    self.right = con.cX
+                elif self.size == 2:
+                    if not row_neighbors and not col_neighbors:
+                        continue
+                else:
+                    if not row_neighbors and not col_neighbors:
+                        continue
 
+                    if not col_neighbors and row_neighbors >= self.size:
+                        continue
+
+                    if not row_neighbors and col_neighbors >= self.size:
+                        continue
             else:
-                if self.debug:
-                    log.info("get_cube_boundry: %s contour is NOT square" % (con))
+                # Ignore the rogue square with no neighbors. I used to do an "or" here but
+                # that was too strict for 2x2x2 cubes.
+                if not row_square_neighbors and not col_square_neighbors:
+                    continue
+
+            if self.top is None or con.cY < self.top:
+                self.top = con.cY
+
+            if self.bottom is None or con.cY > self.bottom:
+                self.bottom = con.cY
+
+            if self.left is None or con.cX < self.left:
+                self.left = con.cX
+
+            if self.right is None or con.cX > self.right:
+                self.right = con.cX
 
         if self.size:
             if self.debug:
@@ -1283,12 +1281,14 @@ class RubiksOpenCV(object):
             self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        canny = cv2.Canny(nonoise, 5, 30)
+        #canny = cv2.Canny(nonoise, 0, 10)
+        canny = cv2.Canny(nonoise, 5, 15)
         self.display_candidates(canny, "20 canny")
 
+        # dwalton
         # dilate the image to make the edge lines thicker
-        kernel = np.ones((3, 3), np.uint8)
-        dilated = cv2.dilate(canny, kernel, iterations=2)
+        kernel = np.ones((4, 4), np.uint8)
+        dilated = cv2.dilate(canny, kernel, iterations=4)
         self.display_candidates(dilated, "30 dilated")
 
         # References:
@@ -1398,14 +1398,12 @@ class RubiksOpenCV(object):
 
         # Now that we know the median size of each square, go back and
         # remove non-squares one more time
-        if self.remove_non_square_candidates(self.median_square_area):
-            self.display_candidates(self.image, "120 post non-square-candidates removal")
-
+        #if self.remove_non_square_candidates(self.median_square_area):
+        #    self.display_candidates(self.image, "120 post non-square-candidates removal")
 
         # We just removed contours outside the boundry and non-square contours, re-define the boundry
-        if not self.get_cube_boundry(True):
-            raise CubeNotFound("%s could not find the cube boundry" % self.name)
-
+        #if not self.get_cube_boundry(True):
+        #    raise CubeNotFound("%s could not find the cube boundry" % self.name)
 
         # Find the size of the gap between two squares
         self.get_black_border_width()
