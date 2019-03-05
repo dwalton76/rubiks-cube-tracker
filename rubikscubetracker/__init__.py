@@ -564,9 +564,6 @@ class RubiksOpenCV(object):
         self.right              = None
         self.bottom             = None
         self.left               = None
-        self.mean_square_area   = 0
-        self.median_square_area = 0
-        self.median_square_width= 0
 
         # 2 for 2x2x2, 3 for 3x3x3, etc
         self.size = None
@@ -840,8 +837,13 @@ class RubiksOpenCV(object):
                     (num_squares, square_area_index, self.median_square_area, self.mean_square_area, ','.join(map(str, square_areas))))
                 log.info("get_median_square_area: %d squares, median index %d, median width %d, all square widths %s" %\
                     (num_squares, square_area_index, self.median_square_width, ','.join(map(str, square_widths))))
+        else:
+            self.mean_square_area = 0
+            self.median_square_area = 0
+            self.median_square_width = 0
 
-        return True if square_areas else False
+        if not square_areas:
+            raise CubeNotFound("%s no squares in image" % self.name)
 
     def get_cube_boundry(self, strict):
         """
@@ -1344,13 +1346,11 @@ class RubiksOpenCV(object):
 
         # Find the median square size, we need that in order to find the
         # squares that make up the boundry of the cube
-        if not self.get_median_square_area():
-            raise CubeNotFound("%s no squares in image" % self.name)
+        self.get_median_square_area()
 
         # Remove contours less than 1/2 the median square size
         if self.remove_dwarf_candidates(int(self.mean_square_area/2)):
-            if not self.get_median_square_area():
-                raise CubeNotFound("%s no squares in image" % self.name)
+            self.get_median_square_area()
             self.display_candidates(self.image, "70 remove dwarf squares")
 
 
@@ -1358,12 +1358,12 @@ class RubiksOpenCV(object):
         # between the cube squares.  Throw away the outside square (it contains
         # the black edge) and keep the inside square.
         if self.remove_square_within_square_candidates():
+            self.get_median_square_area()
             self.display_candidates(self.image, "80 post square-within-square removal #1")
 
         # Remove contours more than 2x the mean square size
         if self.remove_gigantic_candidates(int(self.mean_square_area * 2)):
-            if not self.get_median_square_area():
-                raise CubeNotFound("%s no squares in image" % self.name)
+            self.get_median_square_area()
             self.display_candidates(self.image, "90 remove larger squares")
 
         if not self.get_cube_boundry(False):
@@ -1371,8 +1371,7 @@ class RubiksOpenCV(object):
 
         # remove all contours that are outside the boundry of the cube
         if self.remove_contours_outside_cube(self.candidates):
-            if not self.get_median_square_area():
-                raise CubeNotFound("%s no squares in image" % self.name)
+            self.get_median_square_area()
             self.display_candidates(self.image, "100 post outside cube removal")
 
 
@@ -1391,8 +1390,7 @@ class RubiksOpenCV(object):
 
         # remove contours outside the boundry
         if self.remove_contours_outside_cube(self.candidates):
-            if not self.get_median_square_area():
-                raise CubeNotFound("%s no squares in image" % self.name)
+            self.get_median_square_area()
             self.display_candidates(self.image, "110 post outside cube removal")
 
 
