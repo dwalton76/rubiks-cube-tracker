@@ -1279,12 +1279,12 @@ class RubiksOpenCV(object):
         # This is too CPU intensive for --webcam mode
         else:
             # Removing noise helps a TON with edge detection
-            nonoise = cv2.fastNlMeansDenoising(gray, 10, 10, 7, 21)
+            nonoise = cv2.fastNlMeansDenoising(gray, 15, 15, 7, 21)
             self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
         #canny = cv2.Canny(nonoise, 0, 10)
-        canny = cv2.Canny(nonoise, 5, 15)
+        canny = cv2.Canny(nonoise, 5, 10)
         self.display_candidates(canny, "20 canny")
 
         # dwalton
