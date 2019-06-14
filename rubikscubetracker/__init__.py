@@ -19,12 +19,9 @@ For each png
 """
 
 from copy import deepcopy
-from itertools import combinations
 from pprint import pformat
 from subprocess import check_output
-import argparse
 import cv2
-import logging
 import json
 import logging
 import math
@@ -297,17 +294,20 @@ def approx_is_square(
     far_left = min(A[0], B[0], C[0], D[0])
     far_right = max(A[0], B[0], C[0], D[0])
     far_up = min(A[1], B[1], C[1], D[1])
-    far_down = max(A[1], B[1], C[1], D[1])
+    # far_down = max(A[1], B[1], C[1], D[1])
     top_left = (far_left, far_up)
     top_right = (far_right, far_up)
-    bottom_left = (far_left, far_down)
-    bottom_right = (far_right, far_down)
+    # bottom_left = (far_left, far_down)
+    # bottom_right = (far_right, far_down)
     debug = False
 
     """
     if A[0] >= 93 and A[0] <= 96 and A[1] >= 70 and A[1] <= 80:
         debug = True
-        log.info("approx_is_square A %s, B, %s, C %s, D %s, distance AB %d, AC %d, DB %d, DC %d, max %d, cutoff %d, angle_A %s, angle_B %s, angle_C %s, angle_D %s, top_left %s, top_right %s, bottom_left %s, bottom_right %s" %
+        log.info("approx_is_square A %s, B, %s, C %s, D %s, distance AB %d, "
+            "AC %d, DB %d, DC %d, max %d, cutoff %d, angle_A %s, angle_B %s, "
+            "angle_C %s, angle_D %s, top_left %s, top_right %s, bottom_left %s, "
+            "bottom_right %s" %
                  (A, B, C, D, AB, AC, DB, DC, max_distance, cutoff,
                   angle_A, angle_B, angle_C, angle_D,
                   pformat(top_left), pformat(top_right), pformat(bottom_left), pformat(bottom_right)))
@@ -688,9 +688,8 @@ class RubiksOpenCV(object):
         and ending at the bottom right corner
         """
         result = []
-        num_squares = len(contours)
 
-        for row_index in xrange(size):
+        for row_index in range(size):
 
             # We want the 'size' squares that are closest to the top
             tmp = []
@@ -723,7 +722,6 @@ class RubiksOpenCV(object):
             for con in contours_to_remove:
                 contours.remove(con)
 
-        # assert len(result) == num_squares, "Returning %d squares, it should be %d" % (len(result), num_squares)
         return result
 
     def remove_candidate_contour(self, contour_to_remove):
@@ -1513,7 +1511,7 @@ class RubiksOpenCV(object):
             y = 160
             w = 1000
             h = 820
-            self.image = self.image[y : y + h, x : x + w]
+            self.image = self.image[y: y + h, x: x + w]
 
         (self.img_height, self.img_width) = self.image.shape[:2]
         self.img_area = int(self.img_height * self.img_width)
@@ -1987,7 +1985,7 @@ class RubiksVideo(RubiksOpenCV):
                     RowColSizeMisMatch,
                     FoundMulitpleContours,
                     ZeroCandidates,
-                ) as e:
+                ):
                     self.draw_circles()
                     self.video_reset(False)
 

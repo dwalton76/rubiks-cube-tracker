@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import sys
-import subprocess
 
 
 def convert_keys_to_int(dict_to_convert):

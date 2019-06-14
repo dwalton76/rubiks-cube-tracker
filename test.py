@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 
 
 def rgb_matches(text1, text2):
