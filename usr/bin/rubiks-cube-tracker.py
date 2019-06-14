@@ -9,6 +9,7 @@ import os
 import sys
 import subprocess
 
+
 def convert_keys_to_int(dict_to_convert):
     result = {}
 
@@ -19,22 +20,33 @@ def convert_keys_to_int(dict_to_convert):
 
 
 # Logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(filename)22s %(levelname)8s: %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(filename)22s %(levelname)8s: %(message)s"
+)
 log = logging.getLogger(__name__)
 
 # Color the errors and warnings in red
-logging.addLevelName(logging.ERROR, "\033[91m   %s\033[0m" % logging.getLevelName(logging.ERROR))
-logging.addLevelName(logging.WARNING, "\033[91m %s\033[0m" % logging.getLevelName(logging.WARNING))
+logging.addLevelName(
+    logging.ERROR, "\033[91m   %s\033[0m" % logging.getLevelName(logging.ERROR)
+)
+logging.addLevelName(
+    logging.WARNING, "\033[91m %s\033[0m" % logging.getLevelName(logging.WARNING)
+)
 
 # Command line args
 parser = argparse.ArgumentParser("Rubiks Square Extractor")
-parser.add_argument('-d', '--directory', type=str, help='Directory of images to examine')
-parser.add_argument('-f', '--filename', type=str, help='Image to examine')
-parser.add_argument('--index', type=int, default=0, help='side index number (0-5)')
-parser.add_argument('--name', type=str, default=None, help='side name (U, L, F, R, B, D)')
-parser.add_argument('--debug', action='store_true', help='Enable debugs')
-parser.add_argument('-w', '--webcam', type=int, default=None, help='webcam to use...0, 1, etc')
+parser.add_argument(
+    "-d", "--directory", type=str, help="Directory of images to examine"
+)
+parser.add_argument("-f", "--filename", type=str, help="Image to examine")
+parser.add_argument("--index", type=int, default=0, help="side index number (0-5)")
+parser.add_argument(
+    "--name", type=str, default=None, help="side name (U, L, F, R, B, D)"
+)
+parser.add_argument("--debug", action="store_true", help="Enable debugs")
+parser.add_argument(
+    "-w", "--webcam", type=int, default=None, help="webcam to use...0, 1, etc"
+)
 args = parser.parse_args()
 
 if args.webcam is None and args.directory is None and args.filename is None:
@@ -63,13 +75,13 @@ else:
     cube_size = None
     cube_size = None
 
-    for (side_index, side_name) in enumerate(('U', 'L', 'F', 'R', 'B', 'D')):
+    for (side_index, side_name) in enumerate(("U", "L", "F", "R", "B", "D")):
         filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
 
         if os.path.exists(filename):
-            #log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
+            # log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
 
-            #log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
+            # log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
             rimg = RubiksImage(side_index, side_name, debug=args.debug)
             rimg.analyze_file(filename, cube_size)
 
