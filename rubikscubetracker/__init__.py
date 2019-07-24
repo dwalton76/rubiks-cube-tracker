@@ -1169,7 +1169,7 @@ class RubiksOpenCV(object):
         )
         return True if removed else False
 
-    def get_black_border_width(self):
+    def get_black_border_width(self, webcam):
         cube_height = self.bottom - self.top
         cube_width = self.right - self.left
 
@@ -1199,10 +1199,11 @@ class RubiksOpenCV(object):
                 )
             )
 
-        assert self.black_border_width < self.median_square_width, (
-            "black_border_width %s, median_square_width %s"
-            % (self.black_border_width, self.median_square_width)
-        )
+        if not webcam:
+            assert self.black_border_width < self.median_square_width, (
+                "black_border_width %s, median_square_width %s"
+                % (self.black_border_width, self.median_square_width)
+            )
 
     def sanity_check_results(self, contours, debug=False):
 
@@ -1380,7 +1381,7 @@ class RubiksOpenCV(object):
 
         return (mean_X, mean_Y)
 
-    def remove_outside_contours(self, extra_count):
+    def remove_outside_contours(self, extra_count, webcam):
         contours_to_remove = []
 
         # TODO this logic needs some more work but I want more test-data entries first
@@ -1400,10 +1401,11 @@ class RubiksOpenCV(object):
         for con in contours_to_remove:
             self.candidates.remove(con)
 
-        assert len(contours_to_remove) == extra_count, (
-            "%d contours_to_remove but extra_count is %d"
-            % (len(contours_to_remove), extra_count)
-        )
+        if not webcam:
+            assert len(contours_to_remove) == extra_count, (
+                "%d contours_to_remove but extra_count is %d"
+                % (len(contours_to_remove), extra_count)
+            )
 
     def find_missing_squares(self, missing_count):
 
@@ -1523,7 +1525,7 @@ class RubiksOpenCV(object):
         # self.display_candidates(gray, "09 gray")
 
         if webcam:
-            nonoise = gray.copy()
+            nonoise = cv2.fastNlMeansDenoising(gray, 15, 15, 7, 21)
 
         # This is too CPU intensive for --webcam mode
         else:
@@ -1536,7 +1538,6 @@ class RubiksOpenCV(object):
         canny = cv2.Canny(nonoise, 5, 10)
         self.display_candidates(canny, "20 canny")
 
-        # dwalton
         # dilate the image to make the edge lines thicker
         kernel = np.ones((4, 4), np.uint8)
         dilated = cv2.dilate(canny, kernel, iterations=4)
@@ -1656,7 +1657,7 @@ class RubiksOpenCV(object):
         #    raise CubeNotFound("%s could not find the cube boundry" % self.name)
 
         # Find the size of the gap between two squares
-        self.get_black_border_width()
+        self.get_black_border_width(webcam)
         missing = []
 
         if not self.sanity_check_results(self.candidates):
@@ -1681,12 +1682,13 @@ class RubiksOpenCV(object):
 
             # We have too many contours
             elif missing_count < 0:
-                self.remove_outside_contours(missing_count * -1)
+                self.remove_outside_contours(missing_count * -1, webcam)
 
             else:
-                raise Exception(
-                    "missing_count %s we should not be here" % missing_count
-                )
+                if webcam:
+                    return False
+                else:
+                    raise Exception("missing_count %s we should not be here" % missing_count)
 
         self.display_candidates(self.image, "150 Final", missing)
 
@@ -1722,6 +1724,9 @@ class RubiksOpenCV(object):
             )
         else:
             square_indexes = compress_2d_array(square_indexes)
+
+        if webcam and len(square_indexes) != squares_per_side:
+            return False
 
         self.data = {}
         for index in range(squares_per_side):
@@ -2115,23 +2120,18 @@ class RubiksVideo(RubiksOpenCV):
                     ]
                     log.info(" ".join(cmd))
                     final_colors = json.loads(check_output(cmd).decode("ascii").strip())
-                    final_colors["squares"] = convert_key_strings_to_int(
-                        final_colors["squares"]
-                    )
-                    # log.info("final_colors %s" % pformat(final_colors['squares']))
+                    final_colors["squares"] = convert_key_strings_to_int(final_colors["squares"])
+                    #log.info("final_colors squares %s" % pformat(final_colors['squares']))
                     kociemba_string = final_colors["kociemba"]
                     # print(kociemba_string)
 
                     colormap = {}
                     for (side_name, data) in final_colors["sides"].items():
-                        colormap[side_name] = final_colors["sides"][side_name][
-                            "colorName"
-                        ]
+                        colormap[side_name] = final_colors["sides"][side_name]["colorName" ]
+                    #log.info("final_colors sides\n%s\n" % pformat(final_colors['sides']))
 
                     for (square_index, value) in final_colors["squares"].items():
-                        html_colors = final_colors["sides"][value["finalSide"]][
-                            "colorHTML"
-                        ]
+                        html_colors = final_colors["sides"][value["finalSide"]]["colorHTML"]
                         rgb = (
                             html_colors["red"],
                             html_colors["green"],
@@ -2153,31 +2153,11 @@ class RubiksVideo(RubiksOpenCV):
                             self.D_html[square_index] = rgb
 
                     # Already solved
-                    if (
-                        (
-                            self.size == 2
-                            and kociemba_string == "UUUURRRRFFFFDDDDLLLLBBBB"
-                        )
-                        or (
-                            self.size == 3
-                            and kociemba_string
-                            == "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
-                        )
-                        or (
-                            self.size == 4
-                            and kociemba_string
-                            == "UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB"
-                        )
-                        or (
-                            self.size == 5
-                            and kociemba_string
-                            == "UUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBB"
-                        )
-                        or (
-                            self.size == 6
-                            and kociemba_string
-                            == "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-                        )
+                    if (( self.size == 2 and kociemba_string == "UUUURRRRFFFFDDDDLLLLBBBB")
+                        or (self.size == 3 and kociemba_string == "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB")
+                        or (self.size == 4 and kociemba_string == "UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB")
+                        or (self.size == 5 and kociemba_string == "UUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBB")
+                        or (self.size == 6 and kociemba_string == "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
                     ):
                         self.solution = "SOLVED"
 

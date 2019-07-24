@@ -45,11 +45,11 @@ $ rubiks-cube-tracker.py --webcam 0
 Analyze a single image.  This is only used for debugging and will pop up
 images at various stages of locating the squares.
 ```
-$ rubiks-cube-tracker.py --filename test/test-data/3x3x3-random-01/rubiks-side-B.png
+$ rubiks-cube-tracker.py --filename test-data/3x3x3-random-01/rubiks-side-B.png
 ```
 
 ### Directory of Files
 Analyze a directory of images where the files are named rubiks-side-U.png, rubiks-side-L.png, etc
 ```
-$ rubiks-cube-tracker.py --directory test/test-data/3x3x3-random-01/
+$ rubiks-cube-tracker.py --directory test-data/3x3x3-random-01/
 ```
