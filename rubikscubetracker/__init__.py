@@ -571,6 +571,19 @@ def adjust_gamma(image, gamma=1.0):
     return cv2.LUT(image, table)
 
 
+def increase_brightness(img, value=30):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+
+    lim = 255 - value
+    v[v > lim] = 255
+    v[v <= lim] += value
+
+    final_hsv = cv2.merge((h, s, v))
+    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    return img
+
+
 class RubiksOpenCV(object):
     def __init__(self, index=0, name=None, debug=False):
         self.index = index
@@ -1522,20 +1535,22 @@ class RubiksOpenCV(object):
         )
 
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        # self.display_candidates(gray, "09 gray")
+        # self.display_candidates(gray, "05 gray")
 
         if webcam:
             nonoise = cv2.fastNlMeansDenoising(gray, 15, 15, 7, 21)
 
-        # This is too CPU intensive for --webcam mode
+        # brighten is too CPU intensive for webcam mode
         else:
+            brighten = increase_brightness(self.image, value=50)
+            self.display_candidates(brighten, "09 brighten")
+
             # Removing noise helps a TON with edge detection
-            nonoise = cv2.fastNlMeansDenoising(gray, 15, 15, 7, 21)
+            nonoise = cv2.fastNlMeansDenoising(brighten, 10, 15, 7, 21)
             self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        # canny = cv2.Canny(nonoise, 0, 10)
-        canny = cv2.Canny(nonoise, 5, 10)
+        canny = cv2.Canny(nonoise, 5, 25)
         self.display_candidates(canny, "20 canny")
 
         # dilate the image to make the edge lines thicker
