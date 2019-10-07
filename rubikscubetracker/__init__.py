@@ -1186,7 +1186,7 @@ class RubiksOpenCV(object):
         cube_height = self.bottom - self.top
         cube_width = self.right - self.left
 
-        if cube_width <= cube_height:
+        if cube_width and cube_width <= cube_height:
             pixels = cube_width
             pixels_desc = "width"
         else:
@@ -1199,8 +1199,10 @@ class RubiksOpenCV(object):
 
         if self.debug:
             log.warning(
-                "get_black_border_width: top %s, bottom %s, left %s, right %s, pixels %s (%s), median_square_width %d, black_border_width %s"
+                "get_black_border_width: height %s, width %s, top %s, bottom %s, left %s, right %s, pixels %s (%s), median_square_width %d, black_border_width %s"
                 % (
+                    cube_height,
+                    cube_width,
                     self.top,
                     self.bottom,
                     self.left,
@@ -1537,20 +1539,12 @@ class RubiksOpenCV(object):
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         # self.display_candidates(gray, "05 gray")
 
-        if webcam:
-            nonoise = cv2.fastNlMeansDenoising(gray, 15, 15, 7, 21)
-
-        # brighten is too CPU intensive for webcam mode
-        else:
-            brighten = increase_brightness(self.image, value=50)
-            self.display_candidates(brighten, "09 brighten")
-
-            # Removing noise helps a TON with edge detection
-            nonoise = cv2.fastNlMeansDenoising(brighten, 10, 15, 7, 21)
-            self.display_candidates(nonoise, "10 removed noise")
+        # Removing noise helps a TON with edge detection
+        nonoise = cv2.fastNlMeansDenoising(gray, 10, 15, 7, 21)
+        self.display_candidates(nonoise, "10 removed noise")
 
         # canny to find the edges
-        canny = cv2.Canny(nonoise, 5, 25)
+        canny = cv2.Canny(nonoise, 5, 10)
         self.display_candidates(canny, "20 canny")
 
         # dilate the image to make the edge lines thicker
