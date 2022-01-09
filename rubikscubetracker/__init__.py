@@ -1137,16 +1137,12 @@ class RubiksOpenCV(object):
         con.col_index = int(round((con.cX - self.left) / median_col_width))
 
         if con.row_index >= self.size:
-            raise RowColSizeMisMatch(
-                "con.row_index is %s, must be less than size %s"
-                % (con.row_index, self.size)
-            )
+            log.info("con.row_index is %s, must be less than size %s" % (con.row_index, self.size))
+            con.row_index = self.size - 1
 
         if con.col_index >= self.size:
-            raise RowColSizeMisMatch(
-                "con.col_index is %s, must be less than size %s"
-                % (con.col_index, self.size)
-            )
+            log.info("con.col_index is %s, must be less than size %s" % (con.col_index, self.size))
+            con.col_index = self.size - 1
 
         if self.debug:
             log.info(
