@@ -14,7 +14,6 @@ doesn't work very well for displaying on camera.
 
 ## Install
 ```
-$ sudo apt-get install python-pip python-opencv
 $ sudo pip install git+https://github.com/dwalton76/rubiks-cube-tracker.git
 ```
 
