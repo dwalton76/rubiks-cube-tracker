@@ -15,7 +15,6 @@ For each png
 - json dump a dictionary that contains the RGB values for each square
 
 """
-# noqa: E501
 
 # standard libraries
 import json
@@ -27,20 +26,22 @@ import time
 from copy import deepcopy
 from pprint import pformat
 from subprocess import check_output
+from typing import Any, Dict, List, Optional, Tuple
 
 # third party libraries
 import cv2
 import numpy as np
+from numpy import ndarray
 
 logger = logging.getLogger(__name__)
 
 
-def click_event(event, x, y, flags, param):
+def click_event(event, x, y, flags, param) -> None:
     if event == cv2.EVENT_LBUTTONDOWN:
         print((x, y))
 
 
-def merge_two_dicts(x, y):
+def merge_two_dicts(x: Dict, y: Dict) -> Dict:
     """
     Given two dicts, merge them into a new dict as a shallow copy.
     """
@@ -49,7 +50,7 @@ def merge_two_dicts(x, y):
     return z
 
 
-def convert_key_strings_to_int(data):
+def convert_key_strings_to_int(data: Dict) -> Dict:
     result = {}
     for (key, value) in list(data.items()):
         if key.isdigit():
@@ -59,7 +60,7 @@ def convert_key_strings_to_int(data):
     return result
 
 
-def pixel_distance(A, B):
+def pixel_distance(A: Tuple[int, int], B: Tuple[int, int]) -> float:
     """
     In 9th grade I sat in geometry class wondering "when then hell am I
     ever going to use this?"...today is that day.
@@ -72,7 +73,7 @@ def pixel_distance(A, B):
     return math.sqrt(math.pow(col_B - col_A, 2) + math.pow(row_B - row_A, 2))
 
 
-def get_angle(A, B, C):
+def get_angle(A: Tuple[int, int], B: Tuple[int, int], C: Tuple[int, int]) -> float:
     """
     Return the angle at C (in radians) for the triangle formed by A, B, C
     a, b, c are lengths
@@ -111,7 +112,9 @@ def get_angle(A, B, C):
     return angle_ACB
 
 
-def sort_corners(corner1, corner2, corner3, corner4):
+def sort_corners(
+    corner1: Tuple[int, int], corner2: Tuple[int, int], corner3: Tuple[int, int], corner4: Tuple[int, int]
+) -> List[Tuple[int, int]]:
     """
     Sort the corners such that
     - A is top left
@@ -200,7 +203,9 @@ def sort_corners(corner1, corner2, corner3, corner4):
     return results
 
 
-def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, ROTATE_THRESHOLD=30):
+def approx_is_square(
+    approx: ndarray, SIDE_VS_SIDE_THRESHOLD: float = 0.60, ANGLE_THRESHOLD: int = 20, ROTATE_THRESHOLD: int = 30
+) -> bool:
     """
     Rules
     - there must be four corners
@@ -336,7 +341,7 @@ def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, RO
     return True
 
 
-def square_width_height(approx, debug):
+def square_width_height(approx: ndarray, debug: bool) -> Tuple[float, float]:
     """
     This assumes that approx is a square. Return the width and height of the square.
     """
@@ -368,7 +373,7 @@ def square_width_height(approx, debug):
     return (width, height)
 
 
-def compress_2d_array(original):
+def compress_2d_array(original: List[List[int]]) -> List[int]:
     """
     Convert 2d array to a 1d array
     """
@@ -379,7 +384,7 @@ def compress_2d_array(original):
     return result
 
 
-def get_side_name(size, square_index):
+def get_side_name(size: int, square_index: int) -> str:
     squares_per_side = size * size
 
     if square_index <= squares_per_side:
@@ -418,7 +423,9 @@ class ZeroCandidates(Exception):
 
 
 class CustomContour(object):
-    def __init__(self, rubiks_parent, index, contour, heirarchy, debug):
+    def __init__(
+        self, rubiks_parent: "RubiksImage", index: int, contour: ndarray, heirarchy: ndarray, debug: bool
+    ) -> None:
         self.rubiks_parent = rubiks_parent
         self.index = index
         self.contour = contour
@@ -443,10 +450,10 @@ class CustomContour(object):
             self.cX = None
             self.cY = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Contour #%d (%s, %s)" % (self.index, self.cX, self.cY)
 
-    def is_square(self, target_area=None):
+    def is_square(self, target_area: Optional[int] = None) -> bool:
         AREA_THRESHOLD = 0.50
 
         if not approx_is_square(self.approx):
@@ -478,7 +485,7 @@ class CustomContour(object):
         else:
             return self.rubiks_parent.contours_by_index[child]
 
-    def child_is_square(self):
+    def child_is_square(self) -> bool:
         """
         The black border between the squares can cause us to sometimes find a
         contour for the outside edge of the border and a contour for the the
@@ -510,7 +517,7 @@ class CustomContour(object):
         else:
             return self.rubiks_parent.contours_by_index[parent]
 
-    def parent_is_candidate(self):
+    def parent_is_candidate(self) -> bool:
         parent_con = self.get_parent()
 
         if parent_con:
@@ -519,7 +526,7 @@ class CustomContour(object):
 
         return False
 
-    def parent_is_square(self):
+    def parent_is_square(self) -> bool:
         parent_con = self.get_parent()
 
         if parent_con:
@@ -535,34 +542,8 @@ class CustomContour(object):
         return False
 
 
-def adjust_gamma(image, gamma=1.0):
-    """
-    http://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/
-    """
-    # build a lookup table mapping the pixel values [0, 255] to
-    # their adjusted gamma values
-    invGamma = 1.0 / gamma
-    table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
-
-    # apply gamma correction using the lookup table
-    return cv2.LUT(image, table)
-
-
-def increase_brightness(img, value=30):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-
-    lim = 255 - value
-    v[v > lim] = 255
-    v[v <= lim] += value
-
-    final_hsv = cv2.merge((h, s, v))
-    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
-    return img
-
-
 class RubiksOpenCV(object):
-    def __init__(self, index=0, name=None, debug=False):
+    def __init__(self, index: int = 0, name: None = None, debug: bool = False) -> None:
         self.index = index
         self.name = name
         self.debug = debug
@@ -570,10 +551,10 @@ class RubiksOpenCV(object):
         self.size_static = None
         self.reset()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.name)
 
-    def reset(self):
+    def reset(self) -> None:
         self.data = {}
         self.candidates = []
         self.contours_by_index = {}
@@ -588,7 +569,9 @@ class RubiksOpenCV(object):
         # 2 for 2x2x2, 3 for 3x3x3, etc
         self.size = None
 
-    def get_contour_neighbors(self, contours, target_con):
+    def get_contour_neighbors(
+        self, contours: List[CustomContour], target_con: CustomContour
+    ) -> Tuple[int, int, int, int]:
         """
         Return stats on how many other contours are in the same 'row' or 'col' as target_con
 
@@ -660,7 +643,7 @@ class RubiksOpenCV(object):
             col_square_neighbors,
         )
 
-    def sort_by_row_col(self, contours, size):
+    def sort_by_row_col(self, contours: List[CustomContour], size: int) -> List[CustomContour]:
         """
         Given a list of contours sort them starting from the upper left corner
         and ending at the bottom right corner
@@ -699,7 +682,7 @@ class RubiksOpenCV(object):
 
         return result
 
-    def remove_candidate_contour(self, contour_to_remove):
+    def remove_candidate_contour(self, contour_to_remove: CustomContour) -> None:
 
         # heirarchy is [Next, Previous, First_child, Parent]
         (
@@ -745,7 +728,7 @@ class RubiksOpenCV(object):
                 parent = self.contours_by_index[parent_index]
                 parent.heirarchy[2] = con.index
 
-    def remove_non_square_candidates(self, target_square_area=None):
+    def remove_non_square_candidates(self, target_square_area: None = None) -> bool:
         """
         Remove non-square contours from candidates.  Return a list of the ones we removed.
         """
@@ -771,7 +754,7 @@ class RubiksOpenCV(object):
         else:
             return False
 
-    def remove_dwarf_candidates(self, area_cutoff):
+    def remove_dwarf_candidates(self, area_cutoff: int) -> List[CustomContour]:
         candidates_to_remove = []
 
         # Remove parents with square child contours
@@ -789,7 +772,7 @@ class RubiksOpenCV(object):
 
         return candidates_to_remove
 
-    def remove_gigantic_candidates(self, area_cutoff):
+    def remove_gigantic_candidates(self, area_cutoff: int) -> List:
         candidates_to_remove = []
 
         # Remove parents with square child contours
@@ -812,7 +795,7 @@ class RubiksOpenCV(object):
 
         return candidates_to_remove
 
-    def remove_square_within_square_candidates(self):
+    def remove_square_within_square_candidates(self) -> bool:
         candidates_to_remove = []
 
         # All non-square contours have been removed by this point so remove any contour
@@ -842,7 +825,7 @@ class RubiksOpenCV(object):
 
         return True if removed else False
 
-    def get_median_square_area(self):
+    def get_median_square_area(self) -> None:
         """
         Find the median area of all square contours
         """
@@ -898,7 +881,7 @@ class RubiksOpenCV(object):
         if not square_areas:
             raise CubeNotFound(f"{self.name} no squares in image")
 
-    def get_cube_boundry(self, strict):
+    def get_cube_boundry(self, strict: bool) -> bool:
         """
         Find the top, right, bottom, left boundry of all square contours
         """
@@ -980,7 +963,7 @@ class RubiksOpenCV(object):
         else:
             return False
 
-    def get_cube_size(self):
+    def get_cube_size(self) -> bool:
         """
         Look at all of the contours that are squares and see how many square
         neighbors they have in their row and col. Store the number of square
@@ -1036,7 +1019,7 @@ class RubiksOpenCV(object):
         # Return True if we found a valid cube size
         return self.size in (2, 3, 4, 5, 6, 7, 8, 9, 10)
 
-    def set_contour_row_col_index(self, con):
+    def set_contour_row_col_index(self, con) -> None:
         cube_height = self.bottom - self.top + self.median_square_width
         cube_width = self.right - self.left + self.median_square_width
 
@@ -1091,7 +1074,7 @@ class RubiksOpenCV(object):
         if self.debug:
             logger.info(f"set_contour_row_col_index {con}, col_index {con.col_index}, row_index {con.row_index}\n")
 
-    def remove_contours_outside_cube(self, contours):
+    def remove_contours_outside_cube(self, contours: List[CustomContour]) -> bool:
         assert self.median_square_area is not None, "get_median_square_area() must be called first"
         contours_to_remove = []
 
@@ -1114,7 +1097,7 @@ class RubiksOpenCV(object):
         logger.debug("remove-contours-outside-cube %d removed, %d remain" % (removed, len(contours)))
         return True if removed else False
 
-    def get_black_border_width(self, webcam):
+    def get_black_border_width(self, webcam: bool) -> None:
         cube_height = self.bottom - self.top
         cube_width = self.right - self.left
 
@@ -1151,7 +1134,7 @@ class RubiksOpenCV(object):
                 self.black_border_width < self.median_square_width
             ), f"black_border_width {self.black_border_width}, median_square_width {self.median_square_width}"
 
-    def sanity_check_results(self, contours, debug=False):
+    def sanity_check_results(self, contours: List[CustomContour], debug: bool = False) -> bool:
 
         # Verify we found the correct number of squares
         num_squares = len(contours)
@@ -1193,7 +1176,7 @@ class RubiksOpenCV(object):
         logger.debug(f"{con} sanity True")
         return True
 
-    def get_mean_row_col_for_index(self, col_index, row_index):
+    def get_mean_row_col_for_index(self, col_index: int, row_index: int) -> Tuple[float, float]:
         total_X = 0
         total_prev_X = 0
         total_next_X = 0
@@ -1299,7 +1282,7 @@ class RubiksOpenCV(object):
 
         return (mean_X, mean_Y)
 
-    def remove_outside_contours(self, extra_count, webcam):
+    def remove_outside_contours(self, extra_count: int, webcam: bool) -> None:
         contours_to_remove = []
 
         # TODO this logic needs some more work but I want more test-data entries first
@@ -1325,7 +1308,7 @@ class RubiksOpenCV(object):
                 extra_count,
             )
 
-    def find_missing_squares(self, missing_count):
+    def find_missing_squares(self, missing_count: int) -> List:
 
         if self.debug:
             logger.info("find_missing_squares: size %d, missing %d squares" % (self.size, missing_count))
@@ -1407,7 +1390,7 @@ class RubiksOpenCV(object):
 
         return missing
 
-    def analyze(self, webcam, cube_size=None):
+    def analyze(self, webcam: bool, cube_size: None = None) -> bool:
         assert self.image is not None, "self.image is None"
 
         (self.img_height, self.img_width) = self.image.shape[:2]
@@ -1631,7 +1614,7 @@ class RubiksOpenCV(object):
 
 
 class RubiksImage(RubiksOpenCV):
-    def display_candidates(self, image, desc, missing=[]):
+    def display_candidates(self, image: ndarray, desc: str, missing: List[Any] = []) -> None:
         """
         Used to pop up a window at various stages of the process to show the
         current candidates.  This is only used when debugging else you would
@@ -1689,7 +1672,7 @@ class RubiksImage(RubiksOpenCV):
             cv2.setMouseCallback(desc, click_event)
             cv2.waitKey(0)
 
-    def analyze_file(self, filename, cube_size=None):
+    def analyze_file(self, filename: str, cube_size: None = None) -> bool:
         self.reset()
 
         if not os.path.exists(filename):
@@ -1702,6 +1685,32 @@ class RubiksImage(RubiksOpenCV):
         return self.analyze(webcam=False, cube_size=cube_size)
 
 
+def adjust_gamma(image, gamma=1.0) -> cv2.LUT:
+    """
+    http://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/
+    """
+    # build a lookup table mapping the pixel values [0, 255] to
+    # their adjusted gamma values
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+
+    # apply gamma correction using the lookup table
+    return cv2.LUT(image, table)
+
+
+def increase_brightness(img, value: int = 30) -> cv2.cvtColor:
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+
+    lim = 255 - value
+    v[v > lim] = 255
+    v[v <= lim] += value
+
+    final_hsv = cv2.merge((h, s, v))
+    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    return img
+
+
 class RubiksVideo(RubiksOpenCV):
     def __init__(self, webcam):
         RubiksOpenCV.__init__(self)
@@ -1711,7 +1720,7 @@ class RubiksVideo(RubiksOpenCV):
         # 0 for laptop camera, 1 for usb camera, etc
         self.webcam = webcam
 
-    def video_reset(self, everything):
+    def video_reset(self, everything: bool) -> None:
         RubiksOpenCV.reset(self)
 
         if everything:
@@ -1737,10 +1746,10 @@ class RubiksVideo(RubiksOpenCV):
             self.total_data = {}
             self.size_static = None
 
-    def display_candidates(self, image, desc, missing=[]):
+    def display_candidates(self, image, desc: str, missing=None) -> None:
         pass
 
-    def draw_circles(self):
+    def draw_circles(self) -> None:
         """
         Draw a circle for each contour in self.candidates
         """
@@ -1753,7 +1762,7 @@ class RubiksVideo(RubiksOpenCV):
             if con.width:
                 cv2.circle(self.image, (con.cX, con.cY), int(con.width / 2), (255, 255, 255), 2)
 
-    def draw_cube_face(self, start_x, start_y, side_data, desc):
+    def draw_cube_face(self, start_x, start_y, side_data, desc: str) -> None:
         """
         Draw a rubiks cube face on the video
         """
@@ -1803,7 +1812,7 @@ class RubiksVideo(RubiksOpenCV):
             else:
                 x += square_width + gap
 
-    def process_keyboard_input(self):
+    def process_keyboard_input(self) -> bool:
         c = cv2.waitKey(10) % 0x100
 
         if c == 27:  # ESC
@@ -1823,7 +1832,7 @@ class RubiksVideo(RubiksOpenCV):
 
         return True
 
-    def analyze_webcam(self, width=352, height=240):
+    def analyze_webcam(self, width=352, height=240) -> None:
         self.video_reset(True)
         window_width = width * 2
         window_height = height * 2
