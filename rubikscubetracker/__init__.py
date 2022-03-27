@@ -1304,7 +1304,7 @@ class RubiksOpenCV(object):
                 total_Y += con.cY
                 candidates_Y += 1
 
-            elif con.row_index == row_index - 1:
+            elif con.row_index == row_index + 1:
                 total_next_Y += con.cY
                 candidates_next_Y += 1
 
