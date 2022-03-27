@@ -1,5 +1,3 @@
-#!/usr/bin/env python2
-
 """
 Given the following .png files in /tmp/
 
@@ -17,25 +15,29 @@ For each png
 - json dump a dictionary that contains the RGB values for each square
 
 """
+# noqa: E501
 
-from copy import deepcopy
-from pprint import pformat
-from subprocess import check_output
-import cv2
+# standard libraries
 import json
 import logging
 import math
-import numpy as np
 import os
 import sys
 import time
+from copy import deepcopy
+from pprint import pformat
+from subprocess import check_output
+
+# third party libraries
+import cv2
+import numpy as np
 
 log = logging.getLogger(__name__)
 
 
 def click_event(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
-        print(x, y)
+        print((x, y))
 
 
 def merge_two_dicts(x, y):
@@ -49,7 +51,7 @@ def merge_two_dicts(x, y):
 
 def convert_key_strings_to_int(data):
     result = {}
-    for (key, value) in data.items():
+    for (key, value) in list(data.items()):
         if key.isdigit():
             result[int(key)] = value
         else:
@@ -93,9 +95,7 @@ def get_angle(A, B, C):
     try:
         cos_angle = (math.pow(a, 2) + math.pow(b, 2) - math.pow(c, 2)) / (2 * a * b)
     except ZeroDivisionError as e:
-        log.warning(
-            "get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f" % (A, B, C, a, b, c)
-        )
+        log.warning("get_angle: A %s, B %s, C %s, a %.3f, b %.3f, c %.3f" % (A, B, C, a, b, c))
         raise e
 
     # If CA and CB are very long and the angle at C very narrow we can get an
@@ -200,9 +200,7 @@ def sort_corners(corner1, corner2, corner3, corner4):
     return results
 
 
-def approx_is_square(
-    approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, ROTATE_THRESHOLD=30
-):
+def approx_is_square(approx, SIDE_VS_SIDE_THRESHOLD=0.60, ANGLE_THRESHOLD=20, ROTATE_THRESHOLD=30):
     """
     Rules
     - there must be four corners
@@ -231,12 +229,8 @@ def approx_is_square(
         C ---- D
     """
 
-    assert (
-        SIDE_VS_SIDE_THRESHOLD >= 0 and SIDE_VS_SIDE_THRESHOLD <= 1
-    ), "SIDE_VS_SIDE_THRESHOLD must be between 0 and 1"
-    assert (
-        ANGLE_THRESHOLD >= 0 and ANGLE_THRESHOLD <= 90
-    ), "ANGLE_THRESHOLD must be between 0 and 90"
+    assert SIDE_VS_SIDE_THRESHOLD >= 0 and SIDE_VS_SIDE_THRESHOLD <= 1, "SIDE_VS_SIDE_THRESHOLD must be between 0 and 1"
+    assert ANGLE_THRESHOLD >= 0 and ANGLE_THRESHOLD <= 90, "ANGLE_THRESHOLD must be between 0 and 90"
 
     # There must be four corners
     if len(approx) != 4:
@@ -319,34 +313,22 @@ def approx_is_square(
         angle_B = int(math.degrees(get_angle(A, top_left, B)))
 
         if debug:
-            log.info(
-                "AB is horizontal, angle_B %s, ROTATE_THRESHOLD %s"
-                % (angle_B, ROTATE_THRESHOLD)
-            )
+            log.info("AB is horizontal, angle_B %s, ROTATE_THRESHOLD %s" % (angle_B, ROTATE_THRESHOLD))
 
         if angle_B > ROTATE_THRESHOLD:
             if debug:
-                log.info(
-                    "AB horizontal rotation %s is above ROTATE_THRESHOLD %s"
-                    % (angle_B, ROTATE_THRESHOLD)
-                )
+                log.info("AB horizontal rotation %s is above ROTATE_THRESHOLD %s" % (angle_B, ROTATE_THRESHOLD))
             return False
     else:
         # Angle at A relative to the AB line
         angle_A = int(math.degrees(get_angle(B, top_right, A)))
 
         if debug:
-            log.info(
-                "AB is vertical, angle_A %s, ROTATE_THRESHOLD %s"
-                % (angle_A, ROTATE_THRESHOLD)
-            )
+            log.info("AB is vertical, angle_A %s, ROTATE_THRESHOLD %s" % (angle_A, ROTATE_THRESHOLD))
 
         if angle_A > ROTATE_THRESHOLD:
             if debug:
-                log.info(
-                    "AB vertical rotation %s is above ROTATE_THRESHOLD %s"
-                    % (angle_A, ROTATE_THRESHOLD)
-                )
+                log.info("AB vertical rotation %s is above ROTATE_THRESHOLD %s" % (angle_A, ROTATE_THRESHOLD))
             return False
 
     # TODO - if the area of the approx is way more than the
@@ -380,8 +362,7 @@ def square_width_height(approx, debug):
 
     if debug:
         log.info(
-            "square_width_height: AB %d, AC %d, DB %d, DC %d, width %d, height %d"
-            % (AB, AC, DB, DC, width, height)
+            "square_width_height: AB %d, AC %d, DB %d, DC %d, width %d, height %d" % (AB, AC, DB, DC, width, height)
         )
 
     return (width, height)
@@ -477,9 +458,7 @@ class CustomContour(object):
         if target_area:
             area_ratio = float(target_area / self.area)
 
-            if area_ratio < float(1.0 - AREA_THRESHOLD) or area_ratio > float(
-                1.0 + AREA_THRESHOLD
-            ):
+            if area_ratio < float(1.0 - AREA_THRESHOLD) or area_ratio > float(1.0 + AREA_THRESHOLD):
                 # log.info("FALSE %s target_area %d, my area %d, ratio %s" % (self, target_area, self.area, area_ratio))
                 return False
             else:
@@ -563,9 +542,7 @@ def adjust_gamma(image, gamma=1.0):
     # build a lookup table mapping the pixel values [0, 255] to
     # their adjusted gamma values
     invGamma = 1.0 / gamma
-    table = np.array(
-        [((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]
-    ).astype("uint8")
+    table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
 
     # apply gamma correction using the lookup table
     return cv2.LUT(image, table)
@@ -658,15 +635,9 @@ class RubiksOpenCV(object):
                     col_square_neighbors += 1
                     log.debug("%s is a square col neighbor" % con)
                 else:
-                    log.debug(
-                        "%s is a non-square col neighbor, it has %d corners"
-                        % (con, con.corners)
-                    )
+                    log.debug("%s is a non-square col neighbor, it has %d corners" % (con, con.corners))
             else:
-                log.debug(
-                    "%s x delta %s is outside width wiggle room %s"
-                    % (con, x_delta, width_wiggle)
-                )
+                log.debug("%s x delta %s is outside width wiggle room %s" % (con, x_delta, width_wiggle))
 
             if y_delta <= height_wiggle:
                 row_neighbors += 1
@@ -675,15 +646,9 @@ class RubiksOpenCV(object):
                     row_square_neighbors += 1
                     log.debug("%s is a square row neighbor" % con)
                 else:
-                    log.debug(
-                        "%s is a non-square row neighbor, it has %d corners"
-                        % (con, con.corners)
-                    )
+                    log.debug("%s is a non-square row neighbor, it has %d corners" % (con, con.corners))
             else:
-                log.debug(
-                    "%s y delta %s is outside height wiggle room %s"
-                    % (con, y_delta, height_wiggle)
-                )
+                log.debug("%s y delta %s is outside height wiggle room %s" % (con, y_delta, height_wiggle))
 
         # log.debug("get_contour_neighbors() for %s has row %d, row_square %d, col %d, col_square %d neighbors\n" %
         #    (target_con, row_neighbors, row_square_neighbors, col_neighbors, col_square_neighbors))
@@ -716,10 +681,7 @@ class RubiksOpenCV(object):
                 top_row_left_right.append((cX, cY))
             top_row_left_right = sorted(top_row_left_right)
 
-            log.debug(
-                "sort_by_row_col() row %d: %s"
-                % (row_index, pformat(top_row_left_right))
-            )
+            log.debug("sort_by_row_col() row %d: %s" % (row_index, pformat(top_row_left_right)))
             contours_to_remove = []
             for (target_cX, target_cY) in top_row_left_right:
                 for con in contours:
@@ -746,7 +708,8 @@ class RubiksOpenCV(object):
             contour_to_remove_child,
             contour_to_remove_parent,
         ) = contour_to_remove.heirarchy
-        # log.warning("removing %s with child %s, parent %s" % (contour_to_remove, contour_to_remove_child, contour_to_remove_parent))
+        # log.warning("removing %s with child %s, parent %s" %
+        #     (contour_to_remove, contour_to_remove_child, contour_to_remove_parent))
 
         for con in self.candidates:
             if con == contour_to_remove:
@@ -763,9 +726,7 @@ class RubiksOpenCV(object):
                 con.heirarchy[3] = contour_to_remove_parent
 
                 if contour_to_remove_parent != -1:
-                    self.contours_by_index[contour_to_remove_parent].heirarchy[
-                        2
-                    ] = con.index
+                    self.contours_by_index[contour_to_remove_parent].heirarchy[2] = con.index
 
                 # log.info("    %s parent is now %s" % (con, con.heirarchy[3]))
 
@@ -824,10 +785,7 @@ class RubiksOpenCV(object):
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info(
-                "remove-dwarf-candidates %d removed, %d remain\n"
-                % (removed, len(self.candidates))
-            )
+            log.info("remove-dwarf-candidates %d removed, %d remain\n" % (removed, len(self.candidates)))
 
         return candidates_to_remove
 
@@ -850,10 +808,7 @@ class RubiksOpenCV(object):
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info(
-                "remove-gigantic-candidates: %d removed, %d remain\n"
-                % (removed, len(self.candidates))
-            )
+            log.info("remove-gigantic-candidates: %d removed, %d remain\n" % (removed, len(self.candidates)))
 
         return candidates_to_remove
 
@@ -881,10 +836,7 @@ class RubiksOpenCV(object):
         removed = len(candidates_to_remove)
 
         if self.debug:
-            log.info(
-                "remove-square-within-square-candidates %d removed, %d remain\n"
-                % (removed, len(self.candidates))
-            )
+            log.info("remove-square-within-square-candidates %d removed, %d remain\n" % (removed, len(self.candidates)))
 
         return True if removed else False
 
@@ -918,7 +870,7 @@ class RubiksOpenCV(object):
 
             if self.debug:
                 log.info(
-                    "get_median_square_area: %d squares, median index %d, median area %s, mean area %s, all square areas %s"
+                    "get_median_square_area: %d squares, median index %d, median area %s, mean area %s, all square areas %s"  # noqa: E501
                     % (
                         num_squares,
                         square_area_index,
@@ -1064,11 +1016,7 @@ class RubiksOpenCV(object):
         for size in sorted(size_count.keys()):
             count = size_count[size]
 
-            if (
-                cube_size is None
-                or count > cube_size_count
-                or (count == cube_size_count and size > cube_size)
-            ):
+            if cube_size is None or count > cube_size_count or (count == cube_size_count and size > cube_size):
                 cube_size = size
                 cube_size_count = count
 
@@ -1081,9 +1029,7 @@ class RubiksOpenCV(object):
                 self.size = cube_size
 
         if self.debug:
-            log.info(
-                "cube size is %s, size_count %s" % (self.size, pformat(size_count))
-            )
+            log.info("cube size is %s, size_count %s" % (self.size, pformat(size_count)))
 
         # Return True if we found a valid cube size
         return self.size in (2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -1093,23 +1039,19 @@ class RubiksOpenCV(object):
         cube_width = self.right - self.left + self.median_square_width
 
         # row_size is how many rows of squares we see
-        row_size = round(
-            cube_height / float(self.median_square_width + self.black_border_width)
-        )
+        row_size = round(cube_height / float(self.median_square_width + self.black_border_width))
         row_size = min(self.size, row_size)
         median_row_height = float(cube_height / row_size)
 
         # col_size is how many cols of squares we see
-        col_size = round(
-            cube_width / float(self.median_square_width + self.black_border_width)
-        )
+        col_size = round(cube_width / float(self.median_square_width + self.black_border_width))
         col_size = min(self.size, col_size)
         median_col_width = float(cube_width / col_size)
 
         if self.debug:
             log.info("border width %s" % self.black_border_width)
             log.info(
-                "set_contour_row_col_index %s, top %s, bottom %s, cube_height %s, row_size %s, median_row_height %s, median_square_width %s"
+                "set_contour_row_col_index %s, top %s, bottom %s, cube_height %s, row_size %s, median_row_height %s, median_square_width %s"  # noqa: E501
                 % (
                     con,
                     self.top,
@@ -1121,7 +1063,7 @@ class RubiksOpenCV(object):
                 )
             )
             log.info(
-                "set_contour_row_col_index %s, left %s, right %s, cube_width %s, col_size %s, median_col_width %s, median_square_width %s"
+                "set_contour_row_col_index %s, left %s, right %s, cube_width %s, col_size %s, median_col_width %s, median_square_width %s"  # noqa: E501
                 % (
                     con,
                     self.left,
@@ -1145,15 +1087,10 @@ class RubiksOpenCV(object):
             con.col_index = self.size - 1
 
         if self.debug:
-            log.info(
-                "set_contour_row_col_index %s, col_index %s, row_index %s\n"
-                % (con, con.col_index, con.row_index)
-            )
+            log.info("set_contour_row_col_index %s, col_index %s, row_index %s\n" % (con, con.col_index, con.row_index))
 
     def remove_contours_outside_cube(self, contours):
-        assert (
-            self.median_square_area is not None
-        ), "get_median_square_area() must be called first"
+        assert self.median_square_area is not None, "get_median_square_area() must be called first"
         contours_to_remove = []
 
         # Give a little wiggle room
@@ -1172,10 +1109,7 @@ class RubiksOpenCV(object):
             self.remove_candidate_contour(x)
 
         removed = len(contours_to_remove)
-        log.debug(
-            "remove-contours-outside-cube %d removed, %d remain"
-            % (removed, len(contours))
-        )
+        log.debug("remove-contours-outside-cube %d removed, %d remain" % (removed, len(contours)))
         return True if removed else False
 
     def get_black_border_width(self, webcam):
@@ -1195,7 +1129,7 @@ class RubiksOpenCV(object):
 
         if self.debug:
             log.warning(
-                "get_black_border_width: height %s, width %s, top %s, bottom %s, left %s, right %s, pixels %s (%s), median_square_width %d, black_border_width %s"
+                "get_black_border_width: height %s, width %s, top %s, bottom %s, left %s, right %s, pixels %s (%s), median_square_width %d, black_border_width %s"  # noqa: E501
                 % (
                     cube_height,
                     cube_width,
@@ -1211,10 +1145,9 @@ class RubiksOpenCV(object):
             )
 
         if not webcam:
-            assert self.black_border_width < self.median_square_width, (
-                "black_border_width %s, median_square_width %s"
-                % (self.black_border_width, self.median_square_width)
-            )
+            assert (
+                self.black_border_width < self.median_square_width
+            ), "black_border_width %s, median_square_width %s" % (self.black_border_width, self.median_square_width)
 
     def sanity_check_results(self, contours, debug=False):
 
@@ -1223,18 +1156,12 @@ class RubiksOpenCV(object):
         needed_squares = self.size * self.size
 
         if num_squares < needed_squares:
-            log.debug(
-                "sanity False: num_squares %d < needed_squares %d"
-                % (num_squares, needed_squares)
-            )
+            log.debug("sanity False: num_squares %d < needed_squares %d" % (num_squares, needed_squares))
             return False
 
         elif num_squares < needed_squares:
             # This scenario will need some work so exit here so we notice it
-            log.warning(
-                "sanity False: num_squares %d > needed_squares %d"
-                % (num_squares, needed_squares)
-            )
+            log.warning("sanity False: num_squares %d > needed_squares %d" % (num_squares, needed_squares))
             sys.exit(1)
             return False
 
@@ -1250,17 +1177,11 @@ class RubiksOpenCV(object):
             ) = self.get_contour_neighbors(contours, con)
 
             if row_neighbors != req_neighbors:
-                log.debug(
-                    "%s sanity False: row_neighbors %d != req_neighbors %s"
-                    % (con, row_neighbors, req_neighbors)
-                )
+                log.debug("%s sanity False: row_neighbors %d != req_neighbors %s" % (con, row_neighbors, req_neighbors))
                 return False
 
             if col_neighbors != req_neighbors:
-                log.debug(
-                    "%s sanity False: col_neighbors %d != req_neighbors %s"
-                    % (con, col_neighbors, req_neighbors)
-                )
+                log.debug("%s sanity False: col_neighbors %d != req_neighbors %s" % (con, col_neighbors, req_neighbors))
                 return False
 
         log.debug("%s sanity True" % con)
@@ -1318,11 +1239,7 @@ class RubiksOpenCV(object):
                 )
 
         elif candidates_prev_X:
-            mean_X = (
-                int(total_prev_X / candidates_prev_X)
-                + self.median_square_width
-                + self.black_border_width
-            )
+            mean_X = int(total_prev_X / candidates_prev_X) + self.median_square_width + self.black_border_width
 
             if self.debug:
                 log.info(
@@ -1331,11 +1248,7 @@ class RubiksOpenCV(object):
                 )
 
         elif candidates_next_X:
-            mean_X = (
-                int(total_next_X / candidates_next_X)
-                - self.median_square_width
-                - self.black_border_width
-            )
+            mean_X = int(total_next_X / candidates_next_X) - self.median_square_width - self.black_border_width
 
             if self.debug:
                 log.info(
@@ -1345,9 +1258,7 @@ class RubiksOpenCV(object):
 
         else:
             if not candidates_X:
-                raise ZeroCandidates(
-                    "candidates_X is %s, it cannot be zero" % candidates_X
-                )
+                raise ZeroCandidates("candidates_X is %s, it cannot be zero" % candidates_X)
 
         if candidates_Y:
             mean_Y = int(total_Y / candidates_Y)
@@ -1359,11 +1270,7 @@ class RubiksOpenCV(object):
                 )
 
         elif candidates_prev_Y:
-            mean_Y = (
-                int(total_prev_Y / candidates_prev_Y)
-                + self.median_square_width
-                + self.black_border_width
-            )
+            mean_Y = int(total_prev_Y / candidates_prev_Y) + self.median_square_width + self.black_border_width
 
             if self.debug:
                 log.info(
@@ -1372,11 +1279,7 @@ class RubiksOpenCV(object):
                 )
 
         elif candidates_next_Y:
-            mean_Y = (
-                int(total_next_Y / candidates_next_Y)
-                - self.median_square_width
-                - self.black_border_width
-            )
+            mean_Y = int(total_next_Y / candidates_next_Y) - self.median_square_width - self.black_border_width
 
             if self.debug:
                 log.info(
@@ -1386,9 +1289,7 @@ class RubiksOpenCV(object):
 
         else:
             if not candidates_Y:
-                raise ZeroCandidates(
-                    "candidates_Y is %s, it cannot be zero" % candidates_Y
-                )
+                raise ZeroCandidates("candidates_Y is %s, it cannot be zero" % candidates_Y)
 
         return (mean_X, mean_Y)
 
@@ -1413,18 +1314,15 @@ class RubiksOpenCV(object):
             self.candidates.remove(con)
 
         if not webcam:
-            assert len(contours_to_remove) == extra_count, (
-                "%d contours_to_remove but extra_count is %d"
-                % (len(contours_to_remove), extra_count)
+            assert len(contours_to_remove) == extra_count, "%d contours_to_remove but extra_count is %d" % (
+                len(contours_to_remove),
+                extra_count,
             )
 
     def find_missing_squares(self, missing_count):
 
         if self.debug:
-            log.info(
-                "find_missing_squares: size %d, missing %d squares"
-                % (self.size, missing_count)
-            )
+            log.info("find_missing_squares: size %d, missing %d squares" % (self.size, missing_count))
 
         needed = []
         con_by_row_col_index = {}
@@ -1447,10 +1345,7 @@ class RubiksOpenCV(object):
                 con_by_row_col_index[(con.col_index, con.row_index)] = con
 
         if self.debug:
-            log.info(
-                "find_missing_squares: con_by_row_col_index\n%s"
-                % pformat(con_by_row_col_index)
-            )
+            log.info("find_missing_squares: con_by_row_col_index\n%s" % pformat(con_by_row_col_index))
 
         # Build a list of the row/col indexes where we need a contour
         for col_index in range(self.size):
@@ -1459,27 +1354,21 @@ class RubiksOpenCV(object):
                     needed.append((col_index, row_index))
 
         if self.debug:
-            log.info(
-                "find_missing_squares: missing_count %d, needed %s"
-                % (missing_count, pformat(needed))
-            )
+            log.info("find_missing_squares: missing_count %d, needed %s" % (missing_count, pformat(needed)))
 
         if len(needed) != missing_count:
             raise Exception(
-                "missing_count is %d but needed has %d:\n%s"
-                % (missing_count, len(needed), pformat(needed))
+                "missing_count is %d but needed has %d:\n%s" % (missing_count, len(needed), pformat(needed))
             )
 
         # For each of 'needed', create a CustomContour() object at the coordinates
         # where we need a contour. This will be a very small square contour but that
         # is all we need.
-        index = len(self.contours_by_index.keys()) + 1
+        index = len(list(self.contours_by_index.keys())) + 1
         missing = []
 
         for (col_index, row_index) in needed:
-            (missing_X, missing_Y) = self.get_mean_row_col_for_index(
-                col_index, row_index
-            )
+            (missing_X, missing_Y) = self.get_mean_row_col_for_index(col_index, row_index)
 
             if self.debug:
                 log.info(
@@ -1524,13 +1413,11 @@ class RubiksOpenCV(object):
             y = 160
             w = 1000
             h = 820
-            self.image = self.image[y: y + h, x: x + w]
+            self.image = self.image[y : y + h, x : x + w]
 
         (self.img_height, self.img_width) = self.image.shape[:2]
         self.img_area = int(self.img_height * self.img_width)
-        self.display_candidates(
-            self.image, "00 original (%s x %x)" % (self.img_height, self.img_width)
-        )
+        self.display_candidates(self.image, "00 original (%s x %x)" % (self.img_height, self.img_width))
 
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         # self.display_candidates(gray, "05 gray")
@@ -1557,13 +1444,9 @@ class RubiksOpenCV(object):
         #
         # try/except here to handle multiple versions of OpenCV
         try:
-            (_, contours, hierarchy) = cv2.findContours(
-                dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
+            (_, contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         except ValueError:
-            (contours, hierarchy) = cv2.findContours(
-                dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
+            (contours, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         self.candidates = []
 
@@ -1616,9 +1499,7 @@ class RubiksOpenCV(object):
         # the black edge) and keep the inside square.
         if self.remove_square_within_square_candidates():
             self.get_median_square_area()
-            self.display_candidates(
-                self.image, "80 post square-within-square removal #1"
-            )
+            self.display_candidates(self.image, "80 post square-within-square removal #1")
 
         # Remove contours more than 2x the mean square size
         if self.remove_gigantic_candidates(int(self.mean_square_area * 2)):
@@ -1638,10 +1519,7 @@ class RubiksOpenCV(object):
             self.size = cube_size
         else:
             if not self.get_cube_size():
-                raise CubeNotFound(
-                    "%s invalid cube size %sx%sx%s"
-                    % (self.name, self.size, self.size, self.size)
-                )
+                raise CubeNotFound("%s invalid cube size %sx%sx%s" % (self.name, self.size, self.size, self.size))
 
         # Now that we know the cube size, re-define the boundry
         if not self.get_cube_boundry(True):
@@ -1680,9 +1558,7 @@ class RubiksOpenCV(object):
                     if webcam:
                         return False
                     else:
-                        log.info(
-                            "Could not find missing squares needed to create a valid cube"
-                        )
+                        log.info("Could not find missing squares needed to create a valid cube")
                         raise Exception("Unable to extract image from %s" % self.name)
 
             # We have too many contours
@@ -1702,9 +1578,7 @@ class RubiksOpenCV(object):
             # Use the mean value of the contour
             mask = np.zeros(gray.shape, np.uint8)
             cv2.drawContours(mask, [con.contour], 0, 255, -1)
-            (mean_blue, mean_green, mean_red, _) = map(
-                int, cv2.mean(self.image, mask=mask)
-            )
+            (mean_blue, mean_green, mean_red, _) = list(map(int, cv2.mean(self.image, mask=mask)))
             raw_data.append((mean_red, mean_green, mean_blue))
 
         if self.debug:
@@ -1724,9 +1598,7 @@ class RubiksOpenCV(object):
         if self.debug:
             log.info("%s square_indexes\n%s\n" % (self, pformat(square_indexes)))
             square_indexes = compress_2d_array(square_indexes)
-            log.info(
-                "%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes))
-            )
+            log.info("%s square_indexes (final)\n%s\n" % (self, pformat(square_indexes)))
         else:
             square_indexes = compress_2d_array(square_indexes)
 
@@ -1739,9 +1611,7 @@ class RubiksOpenCV(object):
             (red, green, blue) = raw_data[index]
 
             if self.debug:
-                log.info(
-                    "square %d RGB (%d, %d, %d)" % (square_index, red, green, blue)
-                )
+                log.info("square %d RGB (%d, %d, %d)" % (square_index, red, green, blue))
 
             # self.data is a dict where the square number (as an int) will be
             # the key and a RGB tuple the value
@@ -1803,9 +1673,7 @@ class RubiksImage(RubiksOpenCV):
 
             if to_draw_missing:
                 cv2.drawContours(tmp_image, to_draw_missing, -1, (0, 255, 255), 2)
-                cv2.drawContours(
-                    tmp_image, to_draw_missing_approx, -1, (255, 255, 0), 2
-                )
+                cv2.drawContours(tmp_image, to_draw_missing_approx, -1, (255, 255, 0), 2)
 
             cv2.imshow(desc, tmp_image)
             cv2.setMouseCallback(desc, click_event)
@@ -1819,7 +1687,7 @@ class RubiksImage(RubiksOpenCV):
         self.reset()
 
         if not os.path.exists(filename):
-            print("ERROR: %s does not exists" % filename)
+            print(("ERROR: %s does not exists" % filename))
             sys.exit(1)
 
         log.info("Analyze %s" % filename)
@@ -1877,9 +1745,7 @@ class RubiksVideo(RubiksOpenCV):
 
         for con in self.candidates:
             if con.width:
-                cv2.circle(
-                    self.image, (con.cX, con.cY), int(con.width / 2), (255, 255, 255), 2
-                )
+                cv2.circle(self.image, (con.cX, con.cY), int(con.width / 2), (255, 255, 255), 2)
 
     def draw_cube_face(self, start_x, start_y, side_data, desc):
         """
@@ -1899,7 +1765,7 @@ class RubiksVideo(RubiksOpenCV):
                 )
             return
 
-        num_squares = len(side_data.keys())
+        num_squares = len(list(side_data.keys()))
         size = int(math.sqrt(num_squares))
         gap = 3
         square_width = int((self.draw_cube_size - ((size + 1) * gap)) / size)
@@ -2029,9 +1895,7 @@ class RubiksVideo(RubiksOpenCV):
                 self.B_data,
                 "B",
             )
-            self.draw_cube_face(
-                self.draw_cube_size, height - self.draw_cube_size, self.D_data, "D"
-            )
+            self.draw_cube_face(self.draw_cube_size, height - self.draw_cube_size, self.D_data, "D")
 
             self.draw_cube_face(
                 width - (self.draw_cube_size * 4),
@@ -2070,15 +1934,9 @@ class RubiksVideo(RubiksOpenCV):
                 "D-html",
             )
 
-            if (
-                self.save_colors
-                and self.size
-                and len(self.data.keys()) == (self.size * self.size)
-            ):
+            if self.save_colors and self.size and len(list(self.data.keys())) == (self.size * self.size):
                 self.total_data = merge_two_dicts(self.total_data, self.data)
-                log.info(
-                    "Saved side %s, %d squares" % (self.name, len(self.data.keys()))
-                )
+                log.info("Saved side %s, %d squares" % (self.name, len(list(self.data.keys()))))
 
                 if self.size_static is None:
                     self.size_static = self.size
@@ -2126,16 +1984,16 @@ class RubiksVideo(RubiksOpenCV):
                     log.info(" ".join(cmd))
                     final_colors = json.loads(check_output(cmd).decode("ascii").strip())
                     final_colors["squares"] = convert_key_strings_to_int(final_colors["squares"])
-                    #log.info("final_colors squares %s" % pformat(final_colors['squares']))
+                    # log.info("final_colors squares %s" % pformat(final_colors['squares']))
                     kociemba_string = final_colors["kociemba"]
                     # print(kociemba_string)
 
                     colormap = {}
-                    for (side_name, data) in final_colors["sides"].items():
-                        colormap[side_name] = final_colors["sides"][side_name]["colorName" ]
-                    #log.info("final_colors sides\n%s\n" % pformat(final_colors['sides']))
+                    for (side_name, data) in list(final_colors["sides"].items()):
+                        colormap[side_name] = final_colors["sides"][side_name]["colorName"]
+                    # log.info("final_colors sides\n%s\n" % pformat(final_colors['sides']))
 
-                    for (square_index, value) in final_colors["squares"].items():
+                    for (square_index, value) in list(final_colors["squares"].items()):
                         html_colors = final_colors["sides"][value["finalSide"]]["colorHTML"]
                         rgb = (
                             html_colors["red"],
@@ -2158,11 +2016,27 @@ class RubiksVideo(RubiksOpenCV):
                             self.D_html[square_index] = rgb
 
                     # Already solved
-                    if (( self.size == 2 and kociemba_string == "UUUURRRRFFFFDDDDLLLLBBBB")
-                        or (self.size == 3 and kociemba_string == "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB")
-                        or (self.size == 4 and kociemba_string == "UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB")
-                        or (self.size == 5 and kociemba_string == "UUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBB")
-                        or (self.size == 6 and kociemba_string == "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
+                    if (
+                        (self.size == 2 and kociemba_string == "UUUURRRRFFFFDDDDLLLLBBBB")
+                        or (
+                            self.size == 3
+                            and kociemba_string == "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
+                        )
+                        or (
+                            self.size == 4
+                            and kociemba_string
+                            == "UUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBB"  # noqa: E501
+                        )
+                        or (
+                            self.size == 5
+                            and kociemba_string
+                            == "UUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBB"  # noqa: E501
+                        )
+                        or (
+                            self.size == 6
+                            and kociemba_string
+                            == "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUURRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"  # noqa: E501
+                        )
                     ):
                         self.solution = "SOLVED"
 
@@ -2197,9 +2071,7 @@ class RubiksVideo(RubiksOpenCV):
                             self.solution = line.strip()
 
                         if self.size >= 4:
-                            self.solution = (
-                                "See /tmp/rubiks-cube-NxNxN-solver/index.html"
-                            )
+                            self.solution = "See /tmp/rubiks-cube-NxNxN-solver/index.html"
                     print(self.solution)
 
                 else:
@@ -2210,10 +2082,7 @@ class RubiksVideo(RubiksOpenCV):
 
             if self.solution:
 
-                if (
-                    self.solution == "See /tmp/rubiks-cube-NxNxN-solver/index.html"
-                    or self.solution == "SOLVED"
-                ):
+                if self.solution == "See /tmp/rubiks-cube-NxNxN-solver/index.html" or self.solution == "SOLVED":
                     cv2.putText(
                         self.image,
                         self.solution,
