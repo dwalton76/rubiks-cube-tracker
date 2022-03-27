@@ -7,7 +7,6 @@ init: clean
 	python3 -m venv venv
 	./venv/bin/python3 -m pip install -U pip==22.0.4
 	./venv/bin/python3 -m pip install -r requirements.dev.txt
-	./venv/bin/python3 -m pip install -r requirements.txt
 	./venv/bin/python3 -m pre_commit install --install-hooks --overwrite
 	./venv/bin/python3 -m pip check
 
