@@ -50,7 +50,7 @@ def get_rgb_delta(text1, text2):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)5s: %(message)s")
-    log = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     # Color the errors and warnings in red
     logging.addLevelName(logging.ERROR, "\033[91m  %s\033[0m" % logging.getLevelName(logging.ERROR))
@@ -81,8 +81,8 @@ if __name__ == "__main__":
 
     for (desc, filename) in test_cases:
         test_dir = os.path.abspath(filename[0:-4]) + "/"
-        log.info("filename: %s" % filename)
-        log.info("test_dir: %s" % test_dir)
+        logger.info("filename: %s" % filename)
+        logger.info("test_dir: %s" % test_dir)
 
         try:
             output = (

@@ -9,7 +9,7 @@ setup(
     url="https://github.com/dwalton76/rubiks-cube-tracker",
     author="Daniel Walton",
     author_email="dwalton76@gmail.com",
-    license="MIT",
+    license_files=("LICENSE",),
     scripts=["usr/bin/rubiks-cube-tracker.py"],
     packages=["rubikscubetracker"],
 )

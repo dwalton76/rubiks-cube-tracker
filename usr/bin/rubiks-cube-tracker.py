@@ -23,7 +23,7 @@ def convert_keys_to_int(dict_to_convert):
 
 # Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(filename)22s %(levelname)8s: %(message)s")
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Color the errors and warnings in red
 logging.addLevelName(logging.ERROR, "\033[91m   %s\033[0m" % logging.getLevelName(logging.ERROR))
@@ -40,18 +40,18 @@ parser.add_argument("-w", "--webcam", type=int, default=None, help="webcam to us
 args = parser.parse_args()
 
 if args.webcam is None and args.directory is None and args.filename is None:
-    log.error("args.directory and args.filename are None")
+    logger.error("args.directory and args.filename are None")
     sys.exit(1)
 
 if args.debug:
-    log.setLevel(logging.DEBUG)
+    logger.setLevel(logging.DEBUG)
 
 if args.webcam is not None:
     rvid = RubiksVideo(args.webcam)
     rvid.analyze_webcam()
 
 elif args.filename:
-    log.setLevel(logging.DEBUG)
+    logger.setLevel(logging.DEBUG)
     rimg = RubiksImage(args.index, args.name, args.debug)
     rimg.analyze_file(args.filename)
     print(json.dumps(rimg.data, sort_keys=True))
@@ -70,9 +70,9 @@ else:
         filename = os.path.join(args.directory, f"rubiks-side-{side_name}.png")
 
         if os.path.exists(filename):
-            # log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
+            # logger.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
 
-            # log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
+            # logger.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
             rimg = RubiksImage(side_index, side_name, debug=args.debug)
             rimg.analyze_file(filename, cube_size)
 
@@ -81,7 +81,7 @@ else:
                 cube_size = int(sqrt(side_square_count))
 
             data = merge_two_dicts(data, rimg.data)
-            # log.info("cube_size %d" % cube_size)
+            # logger.info("cube_size %d" % cube_size)
 
         else:
             sys.stderr.write(f"ERROR: {filename} does not exist\n")

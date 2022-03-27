@@ -12,7 +12,7 @@ init: clean
 	./venv/bin/python3 -m pip check
 
 format:
-	isort rubikscubetracker usr test.py
+	isort rubikscubetracker usr test.py setup.py
 	@./venv/bin/python3 -m black --config=pyproject.toml .
 	@./venv/bin/python3 -m flake8 --config=.flake8
 
