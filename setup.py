@@ -12,4 +12,5 @@ setup(
     license_files=("LICENSE",),
     scripts=["usr/bin/rubiks-cube-tracker.py"],
     packages=["rubikscubetracker"],
+    install_requires=["opencv-python>=4.5"],
 )
