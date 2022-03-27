@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # standard libraries
 import argparse
@@ -54,19 +54,20 @@ elif args.filename:
     log.setLevel(logging.DEBUG)
     rimg = RubiksImage(args.index, args.name, args.debug)
     rimg.analyze_file(args.filename)
-    print((json.dumps(rimg.data, sort_keys=True)))
+    print(json.dumps(rimg.data, sort_keys=True))
 
 else:
     data = {}
 
     if not os.path.isdir(args.directory):
-        sys.stderr.write("ERROR: directory %s does not exist\n" % args.directory)
+        sys.stderr.write(f"ERROR: directory {args.directory} does not exist\n")
         sys.exit(1)
+
     cube_size = None
     cube_size = None
 
     for (side_index, side_name) in enumerate(("U", "L", "F", "R", "B", "D")):
-        filename = os.path.join(args.directory, "rubiks-side-%s.png" % side_name)
+        filename = os.path.join(args.directory, f"rubiks-side-{side_name}.png")
 
         if os.path.exists(filename):
             # log.info("filename %s, side_index %s, side_name %s" % (filename, side_index, side_name))
@@ -83,7 +84,7 @@ else:
             # log.info("cube_size %d" % cube_size)
 
         else:
-            sys.stderr.write("ERROR: %s does not exist\n" % filename)
+            sys.stderr.write(f"ERROR: {filename} does not exist\n")
             sys.exit(1)
 
     print((json.dumps(data, sort_keys=True)))
