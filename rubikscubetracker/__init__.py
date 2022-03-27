@@ -13,7 +13,6 @@ jdoe@laptop ~/l/lego-crane-cuber>
 For each png
 - find all of the rubiks squares
 - json dump a dictionary that contains the RGB values for each square
-
 """
 
 # standard libraries
@@ -26,7 +25,7 @@ import time
 from copy import deepcopy
 from pprint import pformat
 from subprocess import check_output
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # third party libraries
 import cv2
@@ -1614,12 +1613,13 @@ class RubiksOpenCV(object):
 
 
 class RubiksImage(RubiksOpenCV):
-    def display_candidates(self, image: ndarray, desc: str, missing: List[Any] = []) -> None:
+    def display_candidates(self, image: ndarray, desc: str, missing: List = None) -> None:
         """
         Used to pop up a window at various stages of the process to show the
         current candidates.  This is only used when debugging else you would
         have a ton of windows popping up all the time.
         """
+        missing = missing or []
 
         if not self.debug:
             return
