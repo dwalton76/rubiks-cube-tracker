@@ -1,10 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
-from pprint import pformat
+# standard libraries
 import json
 import logging
 import os
 import subprocess
+from pprint import pformat
 
 
 def rgb_matches(text1, text2):
@@ -42,26 +43,18 @@ def get_rgb_delta(text1, text2):
         (r2, g2, b2) = rgb2
 
         if abs(r1 - r2) >= 15 or abs(g1 - g2) >= 15 or abs(b1 - b2) >= 15:
-            result.append(
-                "%2d: %14s != %-14s" % (int(square_index), pformat(rgb1), pformat(rgb2))
-            )
+            result.append("%2d: %14s != %-14s" % (int(square_index), pformat(rgb1), pformat(rgb2)))
 
     return "\n".join(result)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)5s: %(message)s"
-    )
-    log = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)5s: %(message)s")
+    logger = logging.getLogger(__name__)
 
     # Color the errors and warnings in red
-    logging.addLevelName(
-        logging.ERROR, "\033[91m  %s\033[0m" % logging.getLevelName(logging.ERROR)
-    )
-    logging.addLevelName(
-        logging.WARNING, "\033[91m%s\033[0m" % logging.getLevelName(logging.WARNING)
-    )
+    logging.addLevelName(logging.ERROR, "\033[91m  %s\033[0m" % logging.getLevelName(logging.ERROR))
+    logging.addLevelName(logging.WARNING, "\033[91m%s\033[0m" % logging.getLevelName(logging.WARNING))
 
     # To add a test case:
     # - place the cube in the robot, solve it
@@ -88,20 +81,18 @@ if __name__ == "__main__":
 
     for (desc, filename) in test_cases:
         test_dir = os.path.abspath(filename[0:-4]) + "/"
-        log.info("filename: %s" % filename)
-        log.info("test_dir: %s" % test_dir)
+        logger.info("filename: %s" % filename)
+        logger.info("test_dir: %s" % test_dir)
 
         try:
             output = (
-                subprocess.check_output(
-                    ["./usr/bin/rubiks-cube-tracker.py", "--directory", test_dir]
-                )
+                subprocess.check_output(["./usr/bin/rubiks-cube-tracker.py", "--directory", test_dir])
                 .decode("ascii")
                 .splitlines()[0]
                 .strip()
             )
         except subprocess.CalledProcessError as e:
-            print("ERROR: rubiks-cube-locator.py barfed on %s" % filename)
+            print(("ERROR: rubiks-cube-locator.py barfed on %s" % filename))
             print(e)
             results.append("\033[91mFAIL\033[0m: %s (Exception)" % desc)
             continue
@@ -117,4 +108,4 @@ if __name__ == "__main__":
             results.append(output)
             # break
 
-    print("\n".join(results))
+    print(("\n".join(results)))
