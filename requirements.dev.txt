@@ -1,6 +1,6 @@
 # building wheels, etc
 pip==22.0.4
-setuptools==61.1.1
+setuptools==65.5.1
 wheel==0.37.1
 pre-commit==2.17.0
 
